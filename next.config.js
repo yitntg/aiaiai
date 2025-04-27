@@ -5,9 +5,8 @@ const nextConfig = {
   compiler: {
     emotion: true,
   },
-  env: {
-    NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-  }
+  // Cloudflare Pages 适配
+  output: 'standalone',
 };
 
 module.exports = nextConfig; 

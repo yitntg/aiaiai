@@ -3,7 +3,10 @@ export interface Location {
   lat: number;
   lng: number;
   title?: string;
+  name?: string;
   description?: string;
+  image?: string;
+  rating?: number;
   icon?: string;
 }
 
