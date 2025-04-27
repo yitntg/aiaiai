@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 旅行助手</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    
+    .chat-container {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 380px;
+      max-width: calc(100vw - 40px);
+      height: 500px;
+      max-height: calc(100vh - 80px);
+      background-color: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+    
+    .chat-container.minimized {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+    }
+    
+    .chat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background-color: #2563eb;
+      color: white;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+    
+    .chat-header h3 {
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    .minimize-btn {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+    
+    .minimize-btn:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .chat-messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .message {
+      max-width: 85%;
+      padding: 10px 16px;
+      border-radius: 16px;
+      line-height: 1.5;
+      font-size: 14px;
+    }
+    
+    .user-message {
+      align-self: flex-end;
+      background-color: #2563eb;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    
+    .assistant-message {
+      align-self: flex-start;
+      background-color: #f1f5f9;
+      color: #1e293b;
+      border-bottom-left-radius: 4px;
+    }
+    
+    .chat-input {
+      padding: 12px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 8px;
+    }
+    
+    .chat-input input {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      outline: none;
+      font-size: 14px;
+    }
+    
+    .chat-input input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+    
+    .send-btn {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0 16px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    .send-btn:hover {
+      background-color: #1d4ed8;
+    }
+    
+    .send-btn:disabled {
+      background-color: #93c5fd;
+      cursor: not-allowed;
+    }
+    
+    .chat-bubble {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background-color: #2563eb;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #94a3b8;
+      border-radius: 50%;
+      animation: typing-animation 1.4s infinite ease-in-out;
+    }
+    
+    .typing-dot:nth-child(1) {
+      animation-delay: 0s;
+    }
+    
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes typing-animation {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-5px);
+      }
+    }
+    
+    .popup-image {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .about-link {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background-color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      z-index: 10;
+      transition: background-color 0.2s;
+    }
+    
+    .about-link:hover {
+      background-color: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="#about" class="about-link" onclick="showAbout(); return false;">关于项目</a>
+    
+    <div id="map"></div>
+    
+    <div class="chat-container" id="chatContainer">
+      <div class="chat-header">
+        <h3>AI 旅行助手</h3>
+        <button class="minimize-btn" id="minimizeBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="chat-messages" id="chatMessages">
+        <div class="message assistant-message">
+          你好！我是你的AI旅行助手。告诉我你想去哪里旅行，我可以提供相关信息。
+        </div>
+      </div>
+      
+      <form class="chat-input" id="chatForm">
+        <input type="text" id="chatInput" placeholder="问我关于旅行的问题...">
+        <button type="submit" class="send-btn" id="sendBtn">发送</button>
+      </form>
+    </div>
+    
+    <div class="chat-bubble" id="chatBubble" style="display: none;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 15c4.418 0 8-3.134 8-7s-3.582-7-8-7-8 3.134-8 7c0 1.76.743 3.37 1.97 4.6-.097 1.016-.417 2.13-.771 2.966-.079.186.074.394.273.362 2.256-.37 3.597-.938 4.18-1.234A9.06 9.06 0 0 0 8 15z"/>
+      </svg>
+    </div>
+  </div>
+  
+  <div id="aboutModal" style="display: none; position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background-color: white; max-width: 600px; width: 100%; border-radius: 12px; padding: 24px; max-height: 90vh; overflow-y: auto;">
+      <h2 style="font-size: 24px; color: #2563eb; margin-bottom: 16px;">关于 AI 旅行助手</h2>
+      
+      <div style="margin-bottom: 24px;">
+        <h3 style="font-size: 18px; margin-bottom: 12px;">项目介绍</h3>
+        <p style="line-height: 1.6; color: #334155; margin-bottom: 12px;">
+          AI 旅行助手是一个基于 OpenStreetMap 开发的旅行规划工具。
+          通过智能 AI 对话，帮助用户探索中国各地的旅游景点和目的地信息。
+        </p>
+        <p style="line-height: 1.6; color: #334155;">
+          本项目利用了现代前端技术，提供了流畅的用户体验和丰富的交互功能。
+        </p>
+      </div>
+      
+      <div style="margin-bottom: 24px;">
+        <h3 style="font-size: 18px; margin-bottom: 12px;">主要功能</h3>
+        <ul style="padding-left: 20px; line-height: 1.6; color: #334155;">
+          <li style="margin-bottom: 8px;">通过 AI 聊天界面获取旅游信息</li>
+          <li style="margin-bottom: 8px;">在地图上显示目的地位置</li>
+          <li style="margin-bottom: 8px;">查看目的地详情和图片</li>
+          <li style="margin-bottom: 8px;">响应式设计，适配各种设备</li>
+        </ul>
+      </div>
+      
+      <div style="margin-bottom: 24px;">
+        <h3 style="font-size: 18px; margin-bottom: 12px;">技术栈</h3>
+        <ul style="padding-left: 20px; line-height: 1.6; color: #334155;">
+          <li style="margin-bottom: 8px;">HTML/CSS/JavaScript</li>
+          <li style="margin-bottom: 8px;">Leaflet 地图</li>
+          <li style="margin-bottom: 8px;">OpenStreetMap 数据</li>
+        </ul>
+      </div>
+      
+      <button onclick="hideAbout()" style="background-color: #2563eb; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: 500;">关闭</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // 初始化地图
+    const map = L.map('map').setView([35.0, 105.0], 4);
+    
+    // 添加OpenStreetMap图层
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    // 创建图标
+    const defaultIcon = L.icon({
+      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    
+    // 聊天相关变量和元素
+    const chatContainer = document.getElementById('chatContainer');
+    const chatBubble = document.getElementById('chatBubble');
+    const minimizeBtn = document.getElementById('minimizeBtn');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const aboutModal = document.getElementById('aboutModal');
+    
+    // 中国主要城市数据
+    const citiesData = [
+      { 
+        name: '北京', 
+        lat: 39.9042, 
+        lng: 116.4074, 
+        description: '中国首都，拥有丰富的历史文化遗产', 
+        image: 'https://images.unsplash.com/photo-1584283367830-7875dd39f6e7?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8MTB8fGJlaWppbmd8ZW58MHx8MHx8&auto=format&fit=crop&w=500&q=60',
+        rating: 4.8
+      },
+      { 
+        name: '上海', 
+        lat: 31.2304, 
+        lng: 121.4737, 
+        description: '中国最大的城市和全球金融中心之一', 
+        image: 'https://images.unsplash.com/photo-1548919973-5cef591cdbc9?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8NXx8c2hhbmdoYWl8ZW58MHx8MHx8&auto=format&fit=crop&w=500&q=60',
+        rating: 4.7
+      },
+      { 
+        name: '广州', 
+        lat: 23.1291, 
+        lng: 113.2644, 
+        description: '中国南方的商业和文化中心', 
+        image: 'https://images.unsplash.com/photo-1583591424399-7d3167fda79d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8MTF8fGd1YW5nemhvdXxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=500&q=60',
+        rating: 4.5
+      },
+      { 
+        name: '深圳', 
+        lat: 22.5431, 
+        lng: 114.0579, 
+        description: '中国创新科技的前沿城市', 
+        image: 'https://images.unsplash.com/photo-1546382102-368825d3a4fd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8Mnx8c2hlbnpoZW58ZW58MHx8MHx8&auto=format&fit=crop&w=500&q=60',
+        rating: 4.6
+      },
+      { 
+        name: '西安', 
+        lat: 34.3416, 
+        lng: 108.9398, 
+        description: '中国古代文明的摇篮之一，拥有兵马俑等文化遗产', 
+        image: 'https://images.unsplash.com/photo-1619852742746-51f6dab01733?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8Mnx8eGlhbiUyMGNoaW5hfGVufDB8fDB8fA%3D%3D&auto=format&fit=crop&w=500&q=60',
+        rating: 4.7
+      },
+      { 
+        name: '成都', 
+        lat: 30.5728, 
+        lng: 104.0668, 
+        description: '中国西南地区的中心城市，以熊猫和美食闻名', 
+        image: 'https://images.unsplash.com/photo-1585211969224-3e992986159d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8NHx8Y2hlbmdkdXxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=500&q=60',
+        rating: 4.8
+      }
+    ];
+    
+    // 已添加的标记
+    const markers = [];
+    let selectedMarker = null;
+    
+    // 最小化和最大化聊天框
+    minimizeBtn.addEventListener('click', () => {
+      chatContainer.classList.add('minimized');
+      setTimeout(() => {
+        chatContainer.style.display = 'none';
+        chatBubble.style.display = 'flex';
+      }, 300);
+    });
+    
+    chatBubble.addEventListener('click', () => {
+      chatBubble.style.display = 'none';
+      chatContainer.style.display = 'flex';
+      setTimeout(() => {
+        chatContainer.classList.remove('minimized');
+      }, 10);
+    });
+    
+    // 处理聊天表单提交
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const message = chatInput.value.trim();
+      if (!message) return;
+      
+      // 添加用户消息
+      addMessage(message, 'user');
+      chatInput.value = '';
+      
+      // 模拟AI思考
+      addThinkingIndicator();
+      
+      // 模拟AI回复
+      setTimeout(() => {
+        removeThinkingIndicator();
+        const response = generateResponse(message);
+        addMessage(response, 'assistant');
+        
+        // 提取并添加地点
+        const locations = extractLocations(message);
+        if (locations.length > 0) {
+          addLocationsToMap(locations);
+        }
+      }, 1500);
+    });
+    
+    // 添加消息到聊天框
+    function addMessage(content, role) {
+      const messageDiv = document.createElement('div');
+      messageDiv.classList.add('message');
+      messageDiv.classList.add(role === 'user' ? 'user-message' : 'assistant-message');
+      messageDiv.textContent = content;
+      
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // 添加思考指示器
+    function addThinkingIndicator() {
+      const indicatorDiv = document.createElement('div');
+      indicatorDiv.classList.add('message', 'assistant-message', 'thinking-indicator');
+      indicatorDiv.id = 'thinkingIndicator';
+      
+      const dot1 = document.createElement('div');
+      const dot2 = document.createElement('div');
+      const dot3 = document.createElement('div');
+      
+      dot1.classList.add('typing-dot');
+      dot2.classList.add('typing-dot');
+      dot3.classList.add('typing-dot');
+      
+      indicatorDiv.appendChild(dot1);
+      indicatorDiv.appendChild(dot2);
+      indicatorDiv.appendChild(dot3);
+      
+      chatMessages.appendChild(indicatorDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // 移除思考指示器
+    function removeThinkingIndicator() {
+      const indicator = document.getElementById('thinkingIndicator');
+      if (indicator) {
+        indicator.remove();
+      }
+    }
+    
+    // 根据用户输入生成响应
+    function generateResponse(input) {
+      const inputLower = input.toLowerCase();
+      
+      if (inputLower.includes('北京')) {
+        return '北京是中国的首都，有许多著名景点，如故宫、天安门广场和长城。您可以参观故宫博物院、天坛、颐和园，或者去郊区的八达岭长城和明十三陵游览。';
+      } else if (inputLower.includes('上海')) {
+        return '上海是中国最大的城市，是一个国际化大都市，有外滩、东方明珠等著名景点。您可以游览外滩的殖民地建筑群，参观豫园，或者去新天地体验上海的现代与传统融合。';
+      } else if (inputLower.includes('广州')) {
+        return '广州是中国南方的商业和文化中心，粤菜的发源地。您可以参观陈家祠、沙面岛、广州塔，品尝地道的粤菜和早茶。';
+      } else if (inputLower.includes('深圳')) {
+        return '深圳是中国改革开放的窗口，一座现代化的创新城市。您可以游览深圳世界之窗、欢乐谷、大梅沙海滩，或者去深圳湾公园散步。';
+      } else if (inputLower.includes('西安')) {
+        return '西安是中国古代文明的摇篮之一，拥有兵马俑等文化遗产。您可以参观秦始皇兵马俑博物馆、古城墙、大雁塔，品尝著名的西安小吃如肉夹馍和羊肉泡馍。';
+      } else if (inputLower.includes('成都')) {
+        return '成都是中国西南地区的中心城市，以熊猫和美食闻名。您可以去成都大熊猫繁育研究基地看熊猫，游览杜甫草堂、武侯祠，品尝正宗的川菜和火锅。';
+      } else if (inputLower.includes('旅游') || inputLower.includes('景点') || inputLower.includes('去哪')) {
+        return '中国有许多著名的旅游景点，例如北京的长城、西安的兵马俑、桂林的山水等。您想了解哪个城市的旅游信息呢？您可以询问我关于北京、上海、广州、深圳、西安、成都等城市的信息。';
+      } else if (inputLower.includes('你好') || inputLower.includes('嗨') || inputLower === 'hi' || inputLower === 'hello') {
+        return '你好！我是您的旅行助手。请问您想了解哪个城市或景点的信息？';
+      } else {
+        return '抱歉，我没有理解您的问题。您可以询问我关于中国主要城市（如北京、上海、广州、深圳、西安、成都等）的旅游信息。';
+      }
+    }
+    
+    // 从文本中提取地点
+    function extractLocations(text) {
+      const locations = [];
+      
+      citiesData.forEach(city => {
+        if (text.includes(city.name)) {
+          locations.push(city);
+        }
+      });
+      
+      return locations;
+    }
+    
+    // 添加地点到地图
+    function addLocationsToMap(locations) {
+      if (locations.length === 0) return;
+      
+      // 创建新标记
+      locations.forEach(location => {
+        // 检查是否已存在相同位置的标记
+        const exists = markers.some(marker => 
+          marker.getLatLng().lat === location.lat && 
+          marker.getLatLng().lng === location.lng
+        );
+        
+        if (!exists) {
+          const marker = L.marker([location.lat, location.lng], { icon: defaultIcon }).addTo(map);
+          
+          // 创建自定义弹出窗口内容
+          const popupContent = document.createElement('div');
+          popupContent.style.maxWidth = '250px';
+          
+          if (location.image) {
+            const img = document.createElement('img');
+            img.src = location.image;
+            img.alt = location.name;
+            img.className = 'popup-image';
+            popupContent.appendChild(img);
+          }
+          
+          const title = document.createElement('h3');
+          title.textContent = location.name;
+          title.style.fontWeight = 'bold';
+          title.style.marginBottom = '8px';
+          popupContent.appendChild(title);
+          
+          if (location.description) {
+            const desc = document.createElement('p');
+            desc.textContent = location.description;
+            desc.style.fontSize = '14px';
+            desc.style.lineHeight = '1.5';
+            desc.style.marginBottom = '8px';
+            popupContent.appendChild(desc);
+          }
+          
+          if (location.rating) {
+            const ratingDiv = document.createElement('div');
+            ratingDiv.style.display = 'flex';
+            ratingDiv.style.alignItems = 'center';
+            
+            const ratingLabel = document.createElement('span');
+            ratingLabel.textContent = '评分: ';
+            ratingLabel.style.fontSize = '14px';
+            ratingLabel.style.marginRight = '4px';
+            
+            const ratingValue = document.createElement('span');
+            ratingValue.textContent = location.rating;
+            ratingValue.style.fontWeight = '500';
+            
+            ratingDiv.appendChild(ratingLabel);
+            ratingDiv.appendChild(ratingValue);
+            popupContent.appendChild(ratingDiv);
+          }
+          
+          marker.bindPopup(popupContent);
+          markers.push(marker);
+          
+          // 如果是第一次添加地点，自动打开弹窗
+          if (markers.length === 1 || locations.length === 1) {
+            marker.openPopup();
+            selectedMarker = marker;
+          }
+        }
+      });
+      
+      // 调整地图视图以显示所有标记
+      if (markers.length > 0) {
+        const group = new L.featureGroup(markers);
+        map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        
+        // 如果只有一个标记，设置适当的缩放级别
+        if (markers.length === 1) {
+          map.setZoom(13);
+        }
+      }
+    }
+    
+    // 关于模态框的函数
+    function showAbout() {
+      aboutModal.style.display = 'flex';
+    }
+    
+    function hideAbout() {
+      aboutModal.style.display = 'none';
+    }
+    
+    // 点击模态框背景关闭
+    aboutModal.addEventListener('click', (e) => {
+      if (e.target === aboutModal) {
+        hideAbout();
+      }
+    });
+    
+    // 键盘事件处理
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideAbout();
+      }
+    });
+  </script>
+</body>
+</html> 
