@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import ChatBox from '../features/chat/components/ChatBox';
 import FullscreenMap from '../features/map/components/FullscreenMap';
 import { Location } from '../types/map';
