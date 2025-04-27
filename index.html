@@ -521,9 +521,9 @@
         const data = await response.json();
         console.log('DeepSeek响应:', data);
         
-        // 检查是否有有效的选择
-        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-          return data.choices[0].message.content;
+        // 检查新的响应格式
+        if (data.content) {
+          return data.content;
         } else if (data.error) {
           throw new Error('API错误: ' + data.error);
         } else {
