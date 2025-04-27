@@ -513,11 +513,22 @@
         });
         
         if (!response.ok) {
-          throw new Error('API请求失败');
+          const errorData = await response.json();
+          console.error('API错误:', errorData);
+          throw new Error('API请求失败: ' + (errorData.error || '未知错误'));
         }
         
         const data = await response.json();
-        return data.choices[0].message.content;
+        console.log('DeepSeek响应:', data);
+        
+        // 检查是否有有效的选择
+        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+          return data.choices[0].message.content;
+        } else if (data.error) {
+          throw new Error('API错误: ' + data.error);
+        } else {
+          throw new Error('API返回了无效的响应格式');
+        }
       } catch (error) {
         console.error('调用DeepSeek API出错:', error);
         
