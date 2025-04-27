@@ -1230,13 +1230,16 @@
         if (locationToShow) {
           console.log('显示位置:', locationToShow);
           
+          // 清除所有现有标记
+          clearMapMarkers();
+          
           // 根据类型选择不同的显示方式
           if (locationToShow.type === 'city' || locationToShow.type === 'province') {
             // 城市或省份 - 先显示整体视图
-            showRegionOverview(locationToShow.name, locationToShow.type, hasTourismContent);
+            await showRegionOverview(locationToShow.name, locationToShow.type, hasTourismContent);
           } else {
             // 景点 - 直接高亮显示
-            highlightLocation(locationToShow.name, locationToShow.type, hasTourismContent);
+            await highlightLocation(locationToShow.name, locationToShow.type, hasTourismContent);
           }
         } else {
           console.log('未找到地理位置信息，不进行地图操作');
@@ -1255,88 +1258,97 @@
       
       try {
         // 使用DistrictSearch获取区域范围
-        if (AMap.DistrictSearch) {
+        if (AMap && AMap.DistrictSearch) {
           const districtSearch = new AMap.DistrictSearch({
             level: regionType === 'province' ? 'province' : 'city',
             subdistrict: 0
           });
           
-          districtSearch.search(regionName, async function(status, result) {
-            if (status === 'complete' && result.districts && result.districts.length > 0) {
-              const district = result.districts[0];
-              const center = district.center;
-              
-              console.log(`找到区域 ${regionName} 的中心点:`, center);
-              
-              // 设置地图中心和缩放级别
-              // 省份缩放级别小一些，城市缩放级别大一些
-              const zoomLevel = regionType === 'province' ? 6 : 9;
-              map.setStatus({animateEnable: true});
-              map.setZoomAndCenter(zoomLevel, [center.lng, center.lat]);
-              
-              // 尝试绘制区域边界
-              if (district.boundaries && district.boundaries.length > 0) {
-                try {
-                  const polygon = new AMap.Polygon({
-                    path: district.boundaries,
-                    strokeWeight: 2,
-                    strokeColor: '#2563eb',
-                    fillColor: '#CCF3FF',
-                    fillOpacity: 0.3
-                  });
-                  
-                  map.add(polygon);
-                  mapMarkers.push(polygon);
-                } catch (e) {
-                  console.error('添加区域边界失败:', e);
-                }
-              }
-              
-              // 添加一个区域标记
-              const marker = new AMap.Marker({
-                position: [center.lng, center.lat],
-                title: regionName,
-                icon: getMarkerIcon(regionType)
-              });
-              
-              // 添加到地图
-              marker.setMap(map);
-              mapMarkers.push(marker);
-              
-              // 如果需要显示POI
-              if (showPOIs) {
-                // 从AI回答中提取的景点
-                const landmarks = extractLandmarksFromText(regionName, aiResponse);
+          return new Promise((resolve) => {
+            districtSearch.search(regionName, async function(status, result) {
+              if (status === 'complete' && result.districts && result.districts.length > 0) {
+                const district = result.districts[0];
+                const center = district.center;
                 
-                if (landmarks.length > 0) {
-                  console.log(`在区域 ${regionName} 内标记 ${landmarks.length} 个AI提到的景点`);
-                  
-                  // 延时500ms再添加景点，让用户先看到区域整体
-                  setTimeout(async () => {
-                    for (const landmark of landmarks) {
-                      await highlightLandmark(landmark, regionName, false);
-                    }
-                  }, 500);
-                } else {
-                  // 如果没有从AI回答中提取到景点，尝试搜索区域内的主要景点
-                  console.log(`尝试搜索 ${regionName} 区域内的主要景点`);
-                  showAreaPOIs(regionName, [center.lng, center.lat]);
+                console.log(`找到区域 ${regionName} 的中心点:`, center);
+                
+                // 设置地图中心和缩放级别
+                // 省份缩放级别小一些，城市缩放级别大一些
+                const zoomLevel = regionType === 'province' ? 6 : 9;
+                map.setStatus({animateEnable: true});
+                map.setZoomAndCenter(zoomLevel, [center.lng, center.lat]);
+                
+                // 尝试绘制区域边界
+                if (district.boundaries && district.boundaries.length > 0) {
+                  try {
+                    const polygon = new AMap.Polygon({
+                      path: district.boundaries,
+                      strokeWeight: 2,
+                      strokeColor: '#2563eb',
+                      fillColor: '#CCF3FF',
+                      fillOpacity: 0.3
+                    });
+                    
+                    map.add(polygon);
+                    mapMarkers.push(polygon);
+                  } catch (e) {
+                    console.error('添加区域边界失败:', e);
+                  }
                 }
+                
+                // 添加一个区域标记
+                const marker = new AMap.Marker({
+                  position: [center.lng, center.lat],
+                  title: regionName,
+                  icon: getMarkerIcon(regionType)
+                });
+                
+                // 添加到地图
+                marker.setMap(map);
+                mapMarkers.push(marker);
+                
+                // 如果需要显示POI
+                if (showPOIs) {
+                  // 从AI回答中提取的景点
+                  const landmarks = extractLandmarksFromText(regionName, aiResponse);
+                  
+                  if (landmarks.length > 0) {
+                    console.log(`在区域 ${regionName} 内标记 ${landmarks.length} 个AI提到的景点`);
+                    
+                    // 延时500ms再添加景点，让用户先看到区域整体
+                    setTimeout(async () => {
+                      for (const landmark of landmarks) {
+                        await highlightLandmark(landmark, regionName, false);
+                      }
+                      resolve(true);
+                    }, 500);
+                  } else {
+                    // 如果没有从AI回答中提取到景点，尝试搜索区域内的主要景点
+                    console.log(`尝试搜索 ${regionName} 区域内的主要景点`);
+                    showAreaPOIs(regionName, [center.lng, center.lat]);
+                    resolve(true);
+                  }
+                } else {
+                  resolve(true);
+                }
+              } else {
+                console.error(`区域搜索失败: ${regionName}`);
+                // 失败时直接使用常规高亮方法
+                await highlightLocation(regionName, regionType, showPOIs);
+                resolve(false);
               }
-            } else {
-              console.error(`区域搜索失败: ${regionName}`);
-              // 失败时直接使用常规高亮方法
-              highlightLocation(regionName, regionType, showPOIs);
-            }
+            });
           });
         } else {
           console.warn('DistrictSearch不可用，使用常规方法高亮位置');
-          highlightLocation(regionName, regionType, showPOIs);
+          await highlightLocation(regionName, regionType, showPOIs);
+          return false;
         }
       } catch (error) {
         console.error(`显示区域概览出错: ${regionName}`, error);
         // 出错时尝试使用常规高亮方法
-        highlightLocation(regionName, regionType, showPOIs);
+        await highlightLocation(regionName, regionType, showPOIs);
+        return false;
       }
     }
     
@@ -2433,6 +2445,7 @@
       testDiv.style.padding = '10px';
       testDiv.style.borderRadius = '5px';
       testDiv.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+      testDiv.style.display = 'none'; // 隐藏测试按钮
       
       const testButton = document.createElement('button');
       testButton.textContent = '测试标记北京';
