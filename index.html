@@ -770,21 +770,46 @@
         return;
       }
       
+      // 城市坐标映射表
+      const cityCoordinates = {
+        '北京': [116.4074, 39.9042],
+        '上海': [121.4737, 31.2304],
+        '广州': [113.2644, 23.1291],
+        '深圳': [114.0579, 22.5431],
+        '西安': [108.9398, 34.3416],
+        '成都': [104.0668, 30.5728],
+        '杭州': [120.1551, 30.2741],
+        '南京': [118.7969, 32.0603],
+        '重庆': [106.5528, 29.5630],
+        '武汉': [114.3162, 30.5810],
+        '长沙': [112.9389, 28.2282],
+        '厦门': [118.0894, 24.4798],
+        '苏州': [120.5853, 31.2990],
+        '天津': [117.1908, 39.1256],
+        '青岛': [120.3826, 36.0671],
+        '大连': [121.6147, 38.9142]
+      };
+      
+      // 获取当前城市坐标，如果不存在则默认北京
+      const position = cityCoordinates[cityName] || cityCoordinates['北京'];
+      console.log('城市坐标:', position);
+      
       // 显示一个简单标记，测试基本功能
       try {
-        console.log('尝试添加简单标记');
+        console.log(`尝试为${cityName}添加简单标记`);
         
-        // 北京坐标
-        const position = [116.4074, 39.9042];
+        // 清除之前的标记
+        clearMapMarkers();
         
         // 创建标记
         const marker = new AMap.Marker({
           position: position,
-          title: '北京市'
+          title: cityName
         });
         
         // 添加到地图
         marker.setMap(map);
+        mapMarkers.push(marker);
         
         // 调整视图
         map.setCenter(position);
@@ -804,9 +829,7 @@
         });
         
         circle.setMap(map);
-        console.log('圆形区域添加成功');
-        
-        // 先尝试基本功能，如果成功再尝试复杂边界
+        console.log(`为${cityName}添加圆形区域成功`);
         
         // 清除之前的城市边界
         if (cityPolygon) {
@@ -824,6 +847,9 @@
           }
           cityPolygon = null;
         }
+        
+        // 保存当前圆形区域为城市边界
+        cityPolygon = circle;
       } catch (error) {
         console.error('添加简单标记时出错:', error);
         alert('添加地图标记失败: ' + error.message);
@@ -848,24 +874,41 @@
         return;
       }
       
+      // 城市坐标映射表
+      const cityCoordinates = {
+        '北京': [116.4074, 39.9042],
+        '上海': [121.4737, 31.2304],
+        '广州': [113.2644, 23.1291],
+        '深圳': [114.0579, 22.5431],
+        '西安': [108.9398, 34.3416],
+        '成都': [104.0668, 30.5728],
+        '杭州': [120.1551, 30.2741],
+        '南京': [118.7969, 32.0603],
+        '重庆': [106.5528, 29.5630],
+        '武汉': [114.3162, 30.5810],
+        '长沙': [112.9389, 28.2282],
+        '厦门': [118.0894, 24.4798],
+        '苏州': [120.5853, 31.2990],
+        '天津': [117.1908, 39.1256],
+        '青岛': [120.3826, 36.0671],
+        '大连': [121.6147, 38.9142]
+      };
+      
       // 清除之前的标记
       clearMapMarkers();
       
       // 使用模拟数据测试标记功能
       try {
-        console.log('使用模拟数据测试标记功能');
+        console.log(`使用模拟数据测试${cityName}的景点标记功能`);
         
-        // 北京几个著名景点的坐标
-        const pois = [
-          { name: '故宫博物院', position: [116.3974, 39.9175], type: '博物馆' },
-          { name: '天安门广场', position: [116.3977, 39.9055], type: '广场' },
-          { name: '颐和园', position: [116.2733, 39.9997], type: '公园' },
-          { name: '圆明园', position: [116.303, 40.0086], type: '公园' },
-          { name: '八达岭长城', position: [116.0169, 40.3609], type: '名胜古迹' }
-        ];
+        // 获取当前城市坐标
+        const cityCenter = cityCoordinates[cityName] || cityCoordinates['北京'];
+        
+        // 为所选城市创建模拟景点数据
+        const poiData = generateCityPOIs(cityName, cityCenter);
         
         // 为每个景点创建标记
-        pois.forEach(poi => {
+        poiData.forEach(poi => {
           // 创建标记
           const marker = new AMap.Marker({
             position: poi.position,
@@ -892,7 +935,7 @@
         });
         
         // 调整地图视野以包含所有标记
-        map.setCenter([116.3974, 39.9175]); // 以故宫为中心
+        map.setCenter(cityCenter);
         map.setZoom(11); // 适当的缩放级别
         
         console.log('模拟数据标记添加成功');
@@ -924,6 +967,69 @@
         console.error('添加景点标记时出错:', error);
         alert('添加景点标记失败: ' + error.message);
       }
+    }
+    
+    // 为城市生成模拟景点数据
+    function generateCityPOIs(cityName, cityCenter) {
+      // 默认景点数据
+      const defaultPOIs = [
+        { name: '景点1', position: offsetPosition(cityCenter, 0.02, 0.01), type: '景区' },
+        { name: '景点2', position: offsetPosition(cityCenter, -0.015, 0.02), type: '公园' },
+        { name: '景点3', position: offsetPosition(cityCenter, 0.01, -0.02), type: '博物馆' },
+        { name: '景点4', position: offsetPosition(cityCenter, -0.03, -0.01), type: '古迹' },
+        { name: '景点5', position: offsetPosition(cityCenter, 0.025, 0.025), type: '寺庙' }
+      ];
+      
+      // 城市特定景点数据
+      const cityPOIs = {
+        '北京': [
+          { name: '故宫博物院', position: [116.3974, 39.9175], type: '博物馆' },
+          { name: '天安门广场', position: [116.3977, 39.9055], type: '广场' },
+          { name: '颐和园', position: [116.2733, 39.9997], type: '公园' },
+          { name: '圆明园', position: [116.303, 40.0086], type: '公园' },
+          { name: '八达岭长城', position: [116.0169, 40.3609], type: '名胜古迹' }
+        ],
+        '上海': [
+          { name: '外滩', position: [121.4906, 31.2466], type: '景区' },
+          { name: '东方明珠', position: [121.4952, 31.2396], type: '观光塔' },
+          { name: '豫园', position: [121.4921, 31.2274], type: '园林' },
+          { name: '上海迪士尼乐园', position: [121.6739, 31.1614], type: '主题公园' },
+          { name: '静安寺', position: [121.4453, 31.2246], type: '寺庙' }
+        ],
+        '广州': [
+          { name: '广州塔', position: [113.3215, 23.1066], type: '观光塔' },
+          { name: '陈家祠', position: [113.2575, 23.1252], type: '博物馆' },
+          { name: '白云山', position: [113.2968, 23.1794], type: '自然景区' },
+          { name: '沙面', position: [113.2404, 23.1099], type: '历史街区' },
+          { name: '广州长隆旅游度假区', position: [113.3266, 22.9993], type: '主题公园' }
+        ],
+        '深圳': [
+          { name: '深圳世界之窗', position: [113.9738, 22.5369], type: '主题公园' },
+          { name: '深圳湾公园', position: [113.9461, 22.5022], type: '公园' },
+          { name: '东部华侨城', position: [114.2827, 22.6306], type: '主题公园' },
+          { name: '深圳欢乐谷', position: [113.9837, 22.5401], type: '主题公园' },
+          { name: '大梅沙海滨公园', position: [114.3119, 22.5956], type: '海滨公园' }
+        ]
+      };
+      
+      // 返回该城市的景点数据，如果没有预设数据则使用默认景点加上城市名
+      if (cityPOIs[cityName]) {
+        return cityPOIs[cityName];
+      } else {
+        // 使用默认数据并修改名称
+        return defaultPOIs.map(poi => ({
+          ...poi,
+          name: `${cityName}${poi.name}`
+        }));
+      }
+    }
+    
+    // 辅助函数：计算偏移后的坐标
+    function offsetPosition(position, lngOffset, latOffset) {
+      return [
+        position[0] + lngOffset,
+        position[1] + latOffset
+      ];
     }
     
     // 清除地图上的所有标记
