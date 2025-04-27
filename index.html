@@ -433,8 +433,28 @@
         map = new AMap.Map('map', {
           zoom: 4,
           center: [105.0, 35.0], // 中国中心点
-          viewMode: '2D'
+          viewMode: '2D',
+          resizeEnable: true,
+          pitchEnable: false,  // 禁用俯仰，减少WebGL负担
+          rotateEnable: false, // 禁用旋转，减少WebGL负担
+          buildingAnimation: false, // 禁用建筑物动画
+          showBuildingBlock: false  // 不显示建筑物块体
         });
+        
+        // 设置地图渲染参数 - 解决Canvas2D警告
+        if (map && map.getContainer()) {
+          const allCanvas = map.getContainer().getElementsByTagName('canvas');
+          for (let i = 0; i < allCanvas.length; i++) {
+            const ctx = allCanvas[i].getContext('2d');
+            if (ctx && typeof ctx.getContextAttributes === 'function') {
+              try {
+                ctx.canvas.setAttribute('willReadFrequently', 'true');
+              } catch (e) {
+                console.warn('无法设置canvas属性:', e);
+              }
+            }
+          }
+        }
         
         console.log('地图实例创建成功，添加控件...');
         // 添加控件
@@ -470,6 +490,18 @@
             title: '测试标记 - 北京'
           });
           marker.setMap(map); // 使用setMap而不是addTo
+          
+          // 设置canvas属性
+          setTimeout(() => {
+            try {
+              const allCanvas = map.getContainer().getElementsByTagName('canvas');
+              for (let i = 0; i < allCanvas.length; i++) {
+                allCanvas[i].setAttribute('willReadFrequently', 'true');
+              }
+            } catch (e) {
+              console.warn('设置canvas属性延迟执行失败:', e);
+            }
+          }, 1000);
         });
       } catch (error) {
         console.error('初始化地图出错:', error);
@@ -612,8 +644,8 @@
         // 移除思考指示器
         removeThinkingIndicator();
         
-        // 添加AI回复
-        addMessage(response, 'assistant');
+        // 添加AI回复 - 改为流式显示
+        await addStreamingMessage(response, 'assistant');
         
         // 分析AI回答中的地理信息并在地图上显示
         console.log('开始分析地理信息...');
@@ -642,6 +674,28 @@
       
       chatMessages.appendChild(messageDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // 添加流式消息显示 (新增函数)
+    async function addStreamingMessage(content, role) {
+      // 创建消息div
+      const messageDiv = document.createElement('div');
+      messageDiv.classList.add('message');
+      messageDiv.classList.add(role === 'user' ? 'user-message' : 'assistant-message');
+      messageDiv.textContent = ''; // 初始为空
+      
+      // 添加到聊天框
+      chatMessages.appendChild(messageDiv);
+      
+      // 逐字显示文本内容
+      const characters = content.split('');
+      for (let i = 0; i < characters.length; i++) {
+        messageDiv.textContent += characters[i];
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        // 根据字符调整延迟时间
+        const delay = characters[i].match(/[，。！？,.!?]/) ? 150 : 15; // 标点符号处停顿更长
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
     
     // 添加思考指示器
@@ -1198,24 +1252,92 @@
     // 使用高德地图API搜索位置
     function searchLocation(locationName, locationType, showPOIs) {
       try {
+        // 检查locationName是否为空
+        if (!locationName || locationName.trim() === '') {
+          console.error('搜索位置名称为空');
+          return;
+        }
+        
         // 创建搜索实例
         const placeSearch = new AMap.PlaceSearch({
           city: '全国',
-          pageSize: 1
+          pageSize: 1,
+          extensions: 'all' // 返回详细信息
         });
         
         console.log(`开始搜索: ${locationName}`);
         
-        // 执行搜索
-        placeSearch.search(locationName, function(status, result) {
-          console.log(`搜索结果状态: ${status}`, result ? '有结果' : '无结果');
-          
+        // 定义最大重试次数
+        const maxRetries = 3;
+        let retryCount = 0;
+        
+        // 实现搜索函数与重试逻辑
+        function doSearch() {
+          // 执行搜索
+          placeSearch.search(locationName, function(status, result) {
+            console.log(`搜索结果状态: ${status}`, result ? '有结果' : '无结果');
+            
+            if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
+              const poi = result.poiList.pois[0];
+              const poiPosition = [poi.location.lng, poi.location.lat];
+              const poiType = poi.type || getDefaultType(locationType);
+              
+              console.log(`搜索成功: ${locationName}`, poiPosition);
+              
+              // 缓存搜索结果
+              locationCache[locationName] = {
+                position: poiPosition,
+                type: poiType
+              };
+              
+              // 显示在地图上
+              showLocationOnMap(locationName, poiPosition, poiType, locationType, showPOIs);
+            } 
+            else {
+              console.error(`搜索失败: ${locationName}`);
+              
+              // 检查是否可以重试
+              if (retryCount < maxRetries) {
+                retryCount++;
+                console.log(`第 ${retryCount} 次重试搜索: ${locationName}`);
+                
+                // 使用不同参数重试
+                if (retryCount === 1) {
+                  // 第一次重试：如果是景点，尝试在搜索词前面加"景点"
+                  if (locationType === 'landmark') {
+                    console.log(`尝试添加"景点"关键词进行搜索`);
+                    placeSearch.search(`景点 ${locationName}`, searchCallback);
+                    return;
+                  }
+                } else if (retryCount === 2) {
+                  // 第二次重试：尝试拆分搜索词
+                  const parts = locationName.split(/[省市区县]/);
+                  if (parts.length > 1) {
+                    const mainPart = parts[0];
+                    console.log(`尝试使用拆分的主要部分搜索: ${mainPart}`);
+                    placeSearch.search(mainPart, searchCallback);
+                    return;
+                  }
+                }
+                
+                // 延时重试原始搜索
+                setTimeout(doSearch, 500 * retryCount);
+              } else {
+                // 尝试使用省市区域分级搜索
+                tryRegionalSearch(locationName, locationType, showPOIs);
+              }
+            }
+          });
+        }
+        
+        // 搜索回调
+        function searchCallback(status, result) {
           if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
             const poi = result.poiList.pois[0];
             const poiPosition = [poi.location.lng, poi.location.lat];
             const poiType = poi.type || getDefaultType(locationType);
             
-            console.log(`搜索成功: ${locationName}`, poiPosition);
+            console.log(`修改关键词搜索成功: ${locationName}`, poiPosition);
             
             // 缓存搜索结果
             locationCache[locationName] = {
@@ -1226,16 +1348,123 @@
             // 显示在地图上
             showLocationOnMap(locationName, poiPosition, poiType, locationType, showPOIs);
           } else {
-            console.error(`搜索失败: ${locationName}`);
-            
-            // 使用备选方法 - 尝试使用默认坐标
-            useFallbackLocation(locationName, locationType, showPOIs);
+            // 继续进行普通重试
+            if (retryCount < maxRetries) {
+              retryCount++;
+              setTimeout(doSearch, 500 * retryCount);
+            } else {
+              // 所有重试都失败，使用备选方法
+              tryRegionalSearch(locationName, locationType, showPOIs);
+            }
           }
-        });
+        }
+        
+        // 开始第一次搜索
+        doSearch();
       } catch (error) {
         console.error(`搜索位置出错: ${locationName}`, error);
-        useFallbackLocation(locationName, locationType, showPOIs);
+        // 尝试分级搜索
+        tryRegionalSearch(locationName, locationType, showPOIs);
       }
+    }
+    
+    // 新增：尝试区域性搜索
+    function tryRegionalSearch(locationName, locationType, showPOIs) {
+      console.log(`尝试区域性搜索: ${locationName}`);
+      
+      // 提取可能的省份或城市
+      const patterns = [
+        /(.+省)(.+市)?(.+[区县])?(.+)?/,  // 匹配"省市区县"格式
+        /(.+市)(.+[区县])?(.+)?/,         // 匹配"市区县"格式
+        /(.+自治区)(.+市)?(.+[区县])?(.+)?/, // 匹配"自治区市区县"格式
+      ];
+      
+      let province = null;
+      let city = null;
+      let district = null;
+      let remainder = null;
+      
+      // 尝试使用模式匹配提取区域信息
+      for (const pattern of patterns) {
+        const match = locationName.match(pattern);
+        if (match) {
+          if (match[1]) province = match[1].trim();
+          if (match[2]) city = match[2].trim();
+          if (match[3]) district = match[3].trim();
+          if (match[4]) remainder = match[4].trim();
+          break;
+        }
+      }
+      
+      // 如果提取到了区域信息
+      if (province || city) {
+        console.log(`提取到区域信息: 省/自治区=${province}, 市=${city}, 区/县=${district}, 剩余=${remainder}`);
+        
+        // 按层级搜索
+        let searchArea = province || city;
+        
+        // 直辖市特殊处理
+        if (locationName.includes('北京') || locationName.includes('上海') || 
+            locationName.includes('天津') || locationName.includes('重庆')) {
+          searchArea = locationName.substring(0, 2);
+        }
+        
+        // 尝试区域定位
+        if (searchArea) {
+          // 使用districtSearch查找区域
+          if (AMap.DistrictSearch) {
+            const districtSearch = new AMap.DistrictSearch({
+              level: province ? 'province' : 'city',
+              subdistrict: 0
+            });
+            
+            districtSearch.search(searchArea, function(status, result) {
+              if (status === 'complete' && result.districts && result.districts.length > 0) {
+                const district = result.districts[0];
+                const center = district.center;
+                
+                console.log(`找到区域 ${searchArea} 的中心点:`, center);
+                
+                // 缓存搜索结果
+                locationCache[locationName] = {
+                  position: [center.lng, center.lat],
+                  type: province ? '省份' : '城市'
+                };
+                
+                // 显示在地图上
+                showLocationOnMap(locationName, [center.lng, center.lat], 
+                                 province ? '省份' : '城市', locationType, showPOIs);
+                
+                // 尝试设置区域边界
+                if (district.boundaries && district.boundaries.length > 0) {
+                  try {
+                    const polygon = new AMap.Polygon({
+                      path: district.boundaries,
+                      strokeWeight: 2,
+                      strokeColor: '#2563eb',
+                      fillColor: '#CCF3FF',
+                      fillOpacity: 0.3
+                    });
+                    
+                    map.add(polygon);
+                    mapMarkers.push(polygon);
+                  } catch (e) {
+                    console.error('添加区域边界失败:', e);
+                  }
+                }
+              } else {
+                console.error(`区域搜索失败: ${searchArea}`);
+                // 最后使用备选坐标
+                useFallbackLocation(locationName, locationType, showPOIs);
+              }
+            });
+            return;
+          }
+        }
+      }
+      
+      // 如果区域提取和搜索都失败，使用备选坐标
+      useFallbackLocation(locationName, locationType, showPOIs);
     }
     
     // 显示位置在地图上
@@ -1490,6 +1719,34 @@
         '澳门': [113.5491, 22.1987],
         '台湾': [121.5200, 25.0330],
         
+        // 重要城市坐标
+        '乌鲁木齐': [87.6168, 43.8256],
+        '拉萨': [91.1409, 29.6456],
+        '西宁': [101.7687, 36.6225],
+        '兰州': [103.8343, 36.0611],
+        '银川': [106.2309, 38.4872],
+        '西安': [108.9543, 34.2778],
+        '郑州': [113.6253, 34.7466],
+        '济南': [117.0009, 36.6759],
+        '太原': [112.5489, 37.8706],
+        '沈阳': [123.4315, 41.8057],
+        '长春': [125.3245, 43.8868],
+        '哈尔滨': [126.6424, 45.7575],
+        '合肥': [117.2900, 31.8606],
+        '南京': [118.7969, 32.0603],
+        '武汉': [114.3413, 30.5844],
+        '长沙': [112.9833, 28.2161],
+        '广州': [113.2644, 23.1291],
+        '南宁': [108.3203, 22.8216],
+        '昆明': [102.7029, 25.0464],
+        '贵阳': [106.7104, 26.6745],
+        '成都': [104.0668, 30.5728],
+        '杭州': [120.1551, 30.2741],
+        '南昌': [115.8999, 28.6763],
+        '福州': [119.2964, 26.0742],
+        '海口': [110.3486, 20.0312],
+        '石家庄': [114.5208, 38.0487],
+        
         // 著名景点坐标
         '故宫': [116.3972, 39.9163],
         '天安门': [116.3949, 39.9087],
@@ -1550,8 +1807,77 @@
         // 广州景点
         '沙面': [113.2404, 23.1099],
         '白云山': [113.2968, 23.1794],
-        '珠江': [113.2687, 23.1188]
+        '珠江': [113.2687, 23.1188],
+        
+        // 新疆景点
+        '喀纳斯': [87.0056, 48.6793],
+        '天山天池': [88.1102, 43.8898],
+        '那拉提': [84.0235, 43.3682],
+        '禾木村': [87.2981, 48.6157],
+        '赛里木湖': [81.1837, 44.6136],
+        '吐鲁番': [89.1659, 42.9480],
+        '葡萄沟': [89.2248, 42.9471],
+        '坎儿井': [89.0317, 42.9397],
+        '火焰山': [89.7502, 42.9386]
       };
+      
+      // 智能模糊匹配
+      function smartMatch(name) {
+        // 直接匹配
+        if (defaultCoordinates[name]) return name;
+        
+        // 包含匹配
+        for (const key in defaultCoordinates) {
+          if (name.includes(key)) return key;
+          if (key.includes(name)) return key;
+        }
+        
+        // 关键词匹配 - 城市
+        const cityMatches = ['市', '城', '都', '区'];
+        for (const suffix of cityMatches) {
+          if (name.endsWith(suffix)) {
+            const baseName = name.slice(0, -1);
+            for (const key in defaultCoordinates) {
+              if (key.includes(baseName)) return key;
+            }
+          }
+        }
+        
+        // 关键词匹配 - 景点
+        const spotMatches = ['景区', '景点', '公园', '遗址', '古镇', '名胜'];
+        for (const keyword of spotMatches) {
+          if (name.includes(keyword)) {
+            const parts = name.split(keyword);
+            for (const part of parts) {
+              for (const key in defaultCoordinates) {
+                if (key.includes(part) || part.includes(key)) return key;
+              }
+            }
+          }
+        }
+        
+        return null;
+      }
+      
+      // 尝试智能匹配
+      const matchedName = smartMatch(locationName);
+      
+      // 如果有匹配结果
+      if (matchedName && defaultCoordinates[matchedName]) {
+        console.log(`通过智能匹配找到位置: ${locationName} -> ${matchedName}`);
+        const position = defaultCoordinates[matchedName];
+        const type = getDefaultType(locationType);
+        
+        // 缓存位置
+        locationCache[locationName] = {
+          position: position,
+          type: type
+        };
+        
+        // 显示在地图上
+        showLocationOnMap(locationName, position, type, locationType, showPOIs);
+        return;
+      }
       
       // 如果有默认坐标
       if (defaultCoordinates[locationName]) {
@@ -1597,7 +1923,10 @@
             }
           }
           
-          alert(`无法在地图上找到 "${locationName}" 的位置`);
+          // 最终备用：使用中国中心点并降低缩放级别
+          console.log(`无法定位 ${locationName}，使用中国中心点`);
+          const position = [105.0, 35.0]; // 中国中心点
+          showLocationOnMap(locationName, position, '未知位置', locationType, false, 4); // 缩放级别4
         }
       }
     }
@@ -1728,6 +2057,14 @@
           '颐和园': [116.2752, 39.9987],
           '长城': [116.0169, 40.3609],
           '八达岭': [116.0169, 40.3609],
+          '外滩': [121.4906, 31.2466],
+          '乌鲁木齐': [87.6168, 43.8256],
+          '拉萨': [91.1409, 29.6456],
+          '西宁': [101.7687, 36.6225],
+          '兰州': [103.8343, 36.0611],
+          '西安': [108.9543, 34.2778],
+          '喀纳斯': [87.0056, 48.6793],
+          '天山天池': [88.1102, 43.8898],
           // 其他坐标已在useFallbackLocation函数中定义
         };
         
@@ -1747,8 +2084,40 @@
           return;
         }
         
-        // 调用原始搜索函数
-        originalSearchLocation(locationName, locationType, showPOIs);
+        // 创建搜索实例
+        const placeSearch = new AMap.PlaceSearch({
+          city: '全国',
+          pageSize: 1
+        });
+        
+        console.log(`开始搜索: ${locationName}`);
+        
+        // 执行搜索
+        placeSearch.search(locationName, function(status, result) {
+          console.log(`搜索结果状态: ${status}`, result ? '有结果' : '无结果');
+          
+          if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
+            const poi = result.poiList.pois[0];
+            const poiPosition = [poi.location.lng, poi.location.lat];
+            const poiType = poi.type || getDefaultType(locationType);
+            
+            console.log(`搜索成功: ${locationName}`, poiPosition);
+            
+            // 缓存搜索结果
+            locationCache[locationName] = {
+              position: poiPosition,
+              type: poiType
+            };
+            
+            // 显示在地图上
+            showLocationOnMap(locationName, poiPosition, poiType, locationType, showPOIs);
+          } else {
+            console.error(`搜索失败: ${locationName}`);
+            
+            // 使用备选方法 - 尝试使用默认坐标
+            useFallbackLocation(locationName, locationType, showPOIs);
+          }
+        });
       } catch (error) {
         console.error(`搜索位置出错: ${locationName}`, error);
         useFallbackLocation(locationName, locationType, showPOIs);
