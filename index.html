@@ -243,7 +243,7 @@
     
     <div class="chat-container" id="chatContainer">
       <div class="chat-header">
-        <h3>AI 旅行助手</h3>
+        <h3>AI 旅行 & 通用助手</h3>
         <button class="minimize-btn" id="minimizeBtn">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
             <path d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8Z"/>
@@ -253,12 +253,12 @@
       
       <div class="chat-messages" id="chatMessages">
         <div class="message assistant-message">
-          你好！我是你的AI旅行助手。告诉我你想去哪里旅行，我可以提供相关信息。
+          你好！我是你的AI助手。不仅可以回答旅行相关问题，还可以聊其他话题。尝试问我关于旅游景点、餐厅推荐，或者任何你感兴趣的话题！
         </div>
       </div>
       
       <form class="chat-input" id="chatForm">
-        <input type="text" id="chatInput" placeholder="问我关于旅行的问题...">
+        <input type="text" id="chatInput" placeholder="问我任何问题...">
         <button type="submit" class="send-btn" id="sendBtn">发送</button>
       </form>
     </div>
@@ -272,25 +272,26 @@
   
   <div id="aboutModal" style="display: none; position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px;">
     <div style="background-color: white; max-width: 600px; width: 100%; border-radius: 12px; padding: 24px; max-height: 90vh; overflow-y: auto;">
-      <h2 style="font-size: 24px; color: #2563eb; margin-bottom: 16px;">关于 AI 旅行助手</h2>
+      <h2 style="font-size: 24px; color: #2563eb; margin-bottom: 16px;">关于 AI 旅行 & 通用助手</h2>
       
       <div style="margin-bottom: 24px;">
         <h3 style="font-size: 18px; margin-bottom: 12px;">项目介绍</h3>
         <p style="line-height: 1.6; color: #334155; margin-bottom: 12px;">
-          AI 旅行助手是一个基于 OpenStreetMap 开发的旅行规划工具。
-          通过智能 AI 对话，帮助用户探索中国各地的旅游景点和目的地信息。
+          AI 旅行 & 通用助手是一个基于 OpenStreetMap 和 DeepSeek AI 开发的智能对话工具。
+          不仅可以帮助用户探索中国各地的旅游景点和目的地信息，还能回答各类通用问题。
         </p>
         <p style="line-height: 1.6; color: #334155;">
-          本项目利用了现代前端技术，提供了流畅的用户体验和丰富的交互功能。
+          本项目采用了轻量级前端技术，提供了流畅的用户体验和丰富的交互功能。
         </p>
       </div>
       
       <div style="margin-bottom: 24px;">
         <h3 style="font-size: 18px; margin-bottom: 12px;">主要功能</h3>
         <ul style="padding-left: 20px; line-height: 1.6; color: #334155;">
-          <li style="margin-bottom: 8px;">通过 AI 聊天界面获取旅游信息</li>
-          <li style="margin-bottom: 8px;">在地图上显示目的地位置</li>
+          <li style="margin-bottom: 8px;">通过 AI 聊天界面获取各类信息</li>
+          <li style="margin-bottom: 8px;">旅游相关问题会在地图上显示目的地位置</li>
           <li style="margin-bottom: 8px;">查看目的地详情和图片</li>
+          <li style="margin-bottom: 8px;">回答通用知识和信息检索类问题</li>
           <li style="margin-bottom: 8px;">响应式设计，适配各种设备</li>
         </ul>
       </div>
@@ -300,7 +301,8 @@
         <ul style="padding-left: 20px; line-height: 1.6; color: #334155;">
           <li style="margin-bottom: 8px;">HTML/CSS/JavaScript</li>
           <li style="margin-bottom: 8px;">Leaflet 地图</li>
-          <li style="margin-bottom: 8px;">OpenStreetMap 数据</li>
+          <li style="margin-bottom: 8px;">DeepSeek AI API</li>
+          <li style="margin-bottom: 8px;">Cloudflare Pages Functions</li>
         </ul>
       </div>
       
@@ -413,7 +415,7 @@
     });
     
     // 处理聊天表单提交
-    chatForm.addEventListener('submit', (e) => {
+    chatForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const message = chatInput.value.trim();
       if (!message) return;
@@ -422,21 +424,41 @@
       addMessage(message, 'user');
       chatInput.value = '';
       
-      // 模拟AI思考
+      // 禁用输入和发送按钮
+      chatInput.disabled = true;
+      sendBtn.disabled = true;
+      
+      // 显示AI思考中
       addThinkingIndicator();
       
-      // 模拟AI回复
-      setTimeout(() => {
+      try {
+        // 获取AI回复
+        const response = await generateResponse(message);
+        
+        // 移除思考指示器
         removeThinkingIndicator();
-        const response = generateResponse(message);
+        
+        // 添加AI回复
         addMessage(response, 'assistant');
         
         // 提取并添加地点
-        const locations = extractLocations(message);
+        const locations = extractLocations(message + ' ' + response);
         if (locations.length > 0) {
           addLocationsToMap(locations);
         }
-      }, 1500);
+      } catch (error) {
+        // 移除思考指示器
+        removeThinkingIndicator();
+        
+        // 显示错误消息
+        addMessage('抱歉，我暂时无法回答您的问题。请稍后再试。', 'assistant');
+        console.error('Error:', error);
+      } finally {
+        // 重新启用输入和发送按钮
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+        chatInput.focus();
+      }
     });
     
     // 添加消息到聊天框
@@ -481,27 +503,46 @@
     }
     
     // 根据用户输入生成响应
-    function generateResponse(input) {
-      const inputLower = input.toLowerCase();
-      
-      if (inputLower.includes('北京')) {
-        return '北京是中国的首都，有许多著名景点，如故宫、天安门广场和长城。您可以参观故宫博物院、天坛、颐和园，或者去郊区的八达岭长城和明十三陵游览。';
-      } else if (inputLower.includes('上海')) {
-        return '上海是中国最大的城市，是一个国际化大都市，有外滩、东方明珠等著名景点。您可以游览外滩的殖民地建筑群，参观豫园，或者去新天地体验上海的现代与传统融合。';
-      } else if (inputLower.includes('广州')) {
-        return '广州是中国南方的商业和文化中心，粤菜的发源地。您可以参观陈家祠、沙面岛、广州塔，品尝地道的粤菜和早茶。';
-      } else if (inputLower.includes('深圳')) {
-        return '深圳是中国改革开放的窗口，一座现代化的创新城市。您可以游览深圳世界之窗、欢乐谷、大梅沙海滩，或者去深圳湾公园散步。';
-      } else if (inputLower.includes('西安')) {
-        return '西安是中国古代文明的摇篮之一，拥有兵马俑等文化遗产。您可以参观秦始皇兵马俑博物馆、古城墙、大雁塔，品尝著名的西安小吃如肉夹馍和羊肉泡馍。';
-      } else if (inputLower.includes('成都')) {
-        return '成都是中国西南地区的中心城市，以熊猫和美食闻名。您可以去成都大熊猫繁育研究基地看熊猫，游览杜甫草堂、武侯祠，品尝正宗的川菜和火锅。';
-      } else if (inputLower.includes('旅游') || inputLower.includes('景点') || inputLower.includes('去哪')) {
-        return '中国有许多著名的旅游景点，例如北京的长城、西安的兵马俑、桂林的山水等。您想了解哪个城市的旅游信息呢？您可以询问我关于北京、上海、广州、深圳、西安、成都等城市的信息。';
-      } else if (inputLower.includes('你好') || inputLower.includes('嗨') || inputLower === 'hi' || inputLower === 'hello') {
-        return '你好！我是您的旅行助手。请问您想了解哪个城市或景点的信息？';
-      } else {
-        return '抱歉，我没有理解您的问题。您可以询问我关于中国主要城市（如北京、上海、广州、深圳、西安、成都等）的旅游信息。';
+    async function generateResponse(input) {
+      try {
+        // 调用我们的Cloudflare Pages Function
+        const response = await fetch('/api/deepseek', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: input })
+        });
+        
+        if (!response.ok) {
+          throw new Error('API请求失败');
+        }
+        
+        const data = await response.json();
+        return data.choices[0].message.content;
+      } catch (error) {
+        console.error('调用DeepSeek API出错:', error);
+        
+        // 回退到本地应答逻辑
+        const inputLower = input.toLowerCase();
+        
+        if (inputLower.includes('北京')) {
+          return '北京是中国的首都，有许多著名景点，如故宫、天安门广场和长城。您可以参观故宫博物院、天坛、颐和园，或者去郊区的八达岭长城和明十三陵游览。';
+        } else if (inputLower.includes('上海')) {
+          return '上海是中国最大的城市，是一个国际化大都市，有外滩、东方明珠等著名景点。您可以游览外滩的殖民地建筑群，参观豫园，或者去新天地体验上海的现代与传统融合。';
+        } else if (inputLower.includes('广州')) {
+          return '广州是中国南方的商业和文化中心，粤菜的发源地。您可以参观陈家祠、沙面岛、广州塔，品尝地道的粤菜和早茶。';
+        } else if (inputLower.includes('深圳')) {
+          return '深圳是中国改革开放的窗口，一座现代化的创新城市。您可以游览深圳世界之窗、欢乐谷、大梅沙海滩，或者去深圳湾公园散步。';
+        } else if (inputLower.includes('西安')) {
+          return '西安是中国古代文明的摇篮之一，拥有兵马俑等文化遗产。您可以参观秦始皇兵马俑博物馆、古城墙、大雁塔，品尝著名的西安小吃如肉夹馍和羊肉泡馍。';
+        } else if (inputLower.includes('成都')) {
+          return '成都是中国西南地区的中心城市，以熊猫和美食闻名。您可以去成都大熊猫繁育研究基地看熊猫，游览杜甫草堂、武侯祠，品尝正宗的川菜和火锅。';
+        } else if (inputLower.includes('旅游') || inputLower.includes('景点') || inputLower.includes('去哪')) {
+          return '中国有许多著名的旅游景点，例如北京的长城、西安的兵马俑、桂林的山水等。您想了解哪个城市的旅游信息呢？您可以询问我关于北京、上海、广州、深圳、西安、成都等城市的信息。';
+        } else if (inputLower.includes('你好') || inputLower.includes('嗨') || inputLower === 'hi' || inputLower === 'hello') {
+          return '你好！我是您的旅行助手。请问您想了解哪个城市或景点的信息？';
+        } else {
+          return '抱歉，我没有理解您的问题。您可以询问我关于中国主要城市（如北京、上海、广州、深圳、西安、成都等）的旅游信息。';
+        }
       }
     }
     
@@ -509,11 +550,30 @@
     function extractLocations(text) {
       const locations = [];
       
+      // 检查已知城市名称是否在文本中
       citiesData.forEach(city => {
         if (text.includes(city.name)) {
           locations.push(city);
         }
       });
+      
+      // 如果没有找到城市，尝试使用正则表达式查找常见的地点表示方式
+      if (locations.length === 0) {
+        const cityRegex = /(北京|上海|广州|深圳|西安|成都|杭州|南京|重庆|武汉|长沙|厦门|苏州|天津|青岛|大连)/g;
+        const matches = text.match(cityRegex);
+        
+        if (matches) {
+          const uniqueMatches = [...new Set(matches)];
+          
+          uniqueMatches.forEach(match => {
+            // 查找匹配的城市数据
+            const cityData = citiesData.find(city => city.name === match);
+            if (cityData) {
+              locations.push(cityData);
+            }
+          });
+        }
+      }
       
       return locations;
     }
