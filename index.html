@@ -1089,77 +1089,69 @@
         await waitForMap();
         console.log('地图已就绪，继续处理地理信息');
         
-        // 主要城市正则表达式 - 扩展更多城市
-        const cityRegex = /(北京|上海|广州|深圳|西安|成都|杭州|南京|重庆|武汉|长沙|厦门|苏州|天津|青岛|大连|哈尔滨|沈阳|西宁|拉萨|乌鲁木齐|银川|呼和浩特|南宁|贵阳|昆明|兰州|太原|石家庄|郑州|济南|合肥|南昌|福州|海口|三亚)/g;
+        // 提取地理信息
+        // 省级行政区
+        const provinceRegex = /(北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|台湾|内蒙古|广西|西藏|宁夏|新疆|香港|澳门)/g;
         
-        // 著名景点正则表达式
+        // 主要城市
+        const cityRegex = /(北京|上海|广州|深圳|成都|重庆|杭州|南京|武汉|西安|天津|苏州|郑州|长沙|青岛|沈阳|大连|厦门|宁波|福州|无锡|济南|昆明|哈尔滨|合肥|长春|石家庄|太原|南宁|南昌|贵阳|兰州|海口|银川|西宁|呼和浩特|拉萨|乌鲁木齐|香港|澳门|台北|高雄|台中)/g;
+        
+        // 著名景点
         const landmarkRegex = /(故宫|天安门|颐和园|长城|外滩|东方明珠|西湖|兵马俑|黄山|张家界|九寨沟|峨眉山|黄果树瀑布|香山|圆明园|天坛|鸟巢|水立方|八达岭|沙面|白云山|珠江|秦始皇兵马俑|大唐芙蓉园|华清宫|大雁塔|钟楼|陕西历史博物馆|都江堰|武侯祠|宽窄巷子|杜甫草堂|青城山|大熊猫繁育研究基地|南锣鼓巷|前门大街|什刹海|三里屯|世贸天阶|簋街|雍和宫|景山公园|北海公园|欢乐谷|世界之窗|锦里|大梅沙|深圳湾公园|东部华侨城|西溪湿地|灵隐寺|六和塔|宋城|江南古镇|千岛湖|普陀山|雪乡|漠河|五大道|鼓浪屿|南浦大桥|城隍庙|七宝老街|田子坊|上海迪士尼|朱家角|豫园|陆家嘴|静安寺|黄浦江|南京路|外白渡桥|龙门石窟|少林寺|玉龙雪山|丽江古城|三清山|婺源|龙脊梯田|桂林山水|阳朔|湘西凤凰|衡山|武当山|泰山|黄山|华山|庐山|三亚湾|大东海|亚龙湾|蜈支洲岛|西栅)/g;
         
-        // 提取地理信息
+        // 提取所有可能的地理实体
+        const userProvinceMatches = userInput.match(provinceRegex) || [];
+        const aiProvinceMatches = aiResponse.match(provinceRegex) || [];
         const userCityMatches = userInput.match(cityRegex) || [];
         const aiCityMatches = aiResponse.match(cityRegex) || [];
         const userLandmarkMatches = userInput.match(landmarkRegex) || [];
         const aiLandmarkMatches = aiResponse.match(landmarkRegex) || [];
         
         // 合并去重所有地理实体
+        const provinceMatches = [...new Set([...userProvinceMatches, ...aiProvinceMatches])];
         const cityMatches = [...new Set([...userCityMatches, ...aiCityMatches])];
         const landmarkMatches = [...new Set([...userLandmarkMatches, ...aiLandmarkMatches])];
         
+        console.log('提取到的省级行政区:', provinceMatches);
         console.log('提取到的城市:', cityMatches);
         console.log('提取到的景点:', landmarkMatches);
         
-        // 处理城市
-        let primaryLocation = null;
-        let locationType = null;
+        // 旅游相关关键词检测
+        const tourismKeywords = ['景点', '游览', '旅游', '参观', '游玩', '景区', '名胜', '公园', '旅行', '玩什么', '好玩的', '有趣的', '著名的', '必去', '打卡', '值得', '推荐'];
         
-        // 优先处理景点
+        const hasTourismContent = tourismKeywords.some(keyword => 
+          userInput.includes(keyword) || aiResponse.includes(keyword)
+        );
+        
+        console.log('包含旅游相关内容:', hasTourismContent);
+        
+        // 确定要显示的位置
+        let locationToShow = null;
+        
+        // 优先级：景点 > 城市 > 省份
         if (landmarkMatches.length > 0) {
-          // 首先获取第一个景点
-          primaryLocation = landmarkMatches[0];
-          locationType = 'landmark';
-          console.log('主要位置(景点):', primaryLocation);
-        } 
-        // 其次处理城市
-        else if (cityMatches.length > 0) {
-          primaryLocation = cityMatches[0];
-          locationType = 'city';
-          console.log('主要位置(城市):', primaryLocation);
+          locationToShow = {
+            name: landmarkMatches[0],
+            type: 'landmark'
+          };
+        } else if (cityMatches.length > 0) {
+          locationToShow = {
+            name: cityMatches[0],
+            type: 'city'
+          };
+        } else if (provinceMatches.length > 0) {
+          locationToShow = {
+            name: provinceMatches[0],
+            type: 'province'
+          };
         }
         
-        // 检查是否有位置需要显示
-        if (primaryLocation) {
-          // 旅游相关关键词
-          const tourismKeywords = ['景点', '游览', '旅游', '参观', '游玩', '景区', '名胜', '公园', '旅行', '玩什么', '好玩的', '有趣的', '著名的', '必去', '打卡', '值得', '推荐'];
+        // 如果有位置需要展示
+        if (locationToShow) {
+          console.log('显示位置:', locationToShow);
           
-          const hasTourismContent = tourismKeywords.some(keyword => 
-            userInput.includes(keyword) || aiResponse.includes(keyword)
-          );
-          
-          console.log('包含旅游相关内容:', hasTourismContent);
-          
-          if (locationType === 'landmark') {
-            // 如果是具体景点，直接定位到景点
-            try {
-              console.log('尝试定位到景点:', primaryLocation);
-              highlightLandmark(primaryLocation);
-            } catch (error) {
-              console.error('定位景点失败:', error);
-            }
-          } else {
-            // 如果是城市
-            try {
-              console.log('尝试高亮城市:', primaryLocation);
-              highlightCity(primaryLocation);
-              
-              // 如果有旅游相关内容，显示城市景点
-              if (hasTourismContent) {
-                console.log('显示城市景点:', primaryLocation);
-                searchCityPOIs(primaryLocation);
-              }
-            } catch (error) {
-              console.error('高亮城市或显示景点失败:', error);
-            }
-          }
+          // 统一处理位置显示
+          highlightLocation(locationToShow.name, locationToShow.type, hasTourismContent);
         } else {
           console.log('未找到地理位置信息，不进行地图操作');
         }
@@ -1168,156 +1160,108 @@
       }
     }
     
-    // 高亮特定景点
-    function highlightLandmark(landmarkName) {
-      console.log('开始高亮景点:', landmarkName);
+    // 地理位置缓存
+    const locationCache = {};
+    
+    // 统一的位置高亮处理函数
+    function highlightLocation(locationName, locationType, showPOIs = false) {
+      console.log(`开始高亮位置: ${locationName}，类型: ${locationType}，显示POI: ${showPOIs}`);
       
       // 检查地图对象
       if (!map) {
-        console.error('无法高亮景点 - 地图对象不存在');
-        alert('地图对象不存在，请先初始化地图');
+        console.error('无法高亮位置 - 地图对象不存在');
         return;
       }
       
       // 检查AMap全局对象
       if (typeof AMap === 'undefined') {
         console.error('AMap对象不存在，地图SDK可能未正确加载');
-        alert('AMap对象不存在，地图SDK可能未正确加载');
         return;
       }
       
-      // 景点坐标映射表
-      const landmarkCoordinates = {
-        // 北京景点
-        '故宫': [116.3972, 39.9163],
-        '天安门': [116.3949, 39.9087],
-        '颐和园': [116.2752, 39.9987],
-        '长城': [116.0169, 40.3609], // 八达岭长城
-        '香山': [116.1854, 39.9957],
-        '圆明园': [116.3019, 40.0069],
-        '天坛': [116.4058, 39.8822],
-        '鸟巢': [116.3967, 39.9929],
-        '水立方': [116.3906, 39.9944],
-        '八达岭': [116.0169, 40.3609],
-        
-        // 上海景点
-        '外滩': [121.4906, 31.2466],
-        '东方明珠': [121.4952, 31.2396],
-        '南浦大桥': [121.5034, 31.1953],
-        '城隍庙': [121.4923, 31.2271],
-        '七宝老街': [121.3531, 31.1566],
-        '田子坊': [121.4701, 31.2133],
-        '上海迪士尼': [121.6739, 31.1614],
-        '朱家角': [121.0529, 31.1075],
-        '豫园': [121.4921, 31.2274],
-        '陆家嘴': [121.5012, 31.2392],
-        '静安寺': [121.4453, 31.2246],
-        '黄浦江': [121.5028, 31.2339],
-        '南京路': [121.4737, 31.2366],
-        '外白渡桥': [121.4907, 31.2424],
-        
-        // 杭州景点
-        '西湖': [120.1399, 30.2358],
-        '西溪湿地': [120.0539, 30.2740],
-        '灵隐寺': [120.1058, 30.2417],
-        '六和塔': [120.1266, 30.2013],
-        '宋城': [120.0967, 30.1823],
-        
-        // 西安景点
-        '兵马俑': [109.2783, 34.3848],
-        '大唐芙蓉园': [108.9825, 34.2128],
-        '华清宫': [109.2173, 34.3667],
-        '大雁塔': [108.9646, 34.2229],
-        '钟楼': [108.9402, 34.2596],
-        '陕西历史博物馆': [108.9537, 34.2299],
-        
-        // 成都景点
-        '都江堰': [103.6167, 31.0037],
-        '武侯祠': [104.0487, 30.6428],
-        '宽窄巷子': [104.0633, 30.6713],
-        '杜甫草堂': [104.0329, 30.6682],
-        '青城山': [103.5655, 30.9144],
-        '大熊猫繁育研究基地': [104.1444, 30.7349],
-        '锦里': [104.0485, 30.6426],
-        
-        // 广州景点
-        '沙面': [113.2404, 23.1099],
-        '白云山': [113.2968, 23.1794],
-        '珠江': [113.2687, 23.1188],
-      };
-      
-      // 获取景点坐标
-      const position = landmarkCoordinates[landmarkName];
-      
-      if (!position) {
-        console.warn(`未找到景点 "${landmarkName}" 的坐标数据，尝试地点搜索`);
-        
-        // 尝试使用高德地图搜索
-        if (AMap.PlaceSearch) {
-          const placeSearch = new AMap.PlaceSearch({
-            city: '全国',
-            pageSize: 1,
-          });
-          
-          placeSearch.search(landmarkName, function(status, result) {
-            if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
-              const poi = result.poiList.pois[0];
-              const poiPosition = [poi.location.lng, poi.location.lat];
-              console.log(`景点 "${landmarkName}" 搜索成功:`, poiPosition);
-              
-              // 使用搜索结果显示标记
-              showLandmarkMarker(landmarkName, poiPosition, poi.type || '景点');
-            } else {
-              console.error(`景点 "${landmarkName}" 搜索失败:`, status, result);
-              alert(`未能找到景点 "${landmarkName}" 的位置信息`);
-            }
-          });
-        } else {
-          alert(`未能找到景点 "${landmarkName}" 的位置信息`);
-        }
-        
-        return;
-      }
-      
-      // 显示景点标记
-      showLandmarkMarker(landmarkName, position, '著名景点');
-    }
-    
-    // 显示景点标记和信息窗口
-    function showLandmarkMarker(name, position, type) {
       // 清除之前的标记
       clearMapMarkers();
       
+      // 判断是否已有缓存
+      if (locationCache[locationName]) {
+        console.log(`使用缓存的位置数据: ${locationName}`);
+        const cacheData = locationCache[locationName];
+        showLocationOnMap(locationName, cacheData.position, cacheData.type, locationType, showPOIs);
+        return;
+      }
+      
+      // 尝试使用高德地图搜索API
+      console.log(`搜索位置: ${locationName}`);
+      searchLocation(locationName, locationType, showPOIs);
+    }
+    
+    // 使用高德地图API搜索位置
+    function searchLocation(locationName, locationType, showPOIs) {
       try {
-        // 创建景点标记
+        // 创建搜索实例
+        const placeSearch = new AMap.PlaceSearch({
+          city: '全国',
+          pageSize: 1
+        });
+        
+        console.log(`开始搜索: ${locationName}`);
+        
+        // 执行搜索
+        placeSearch.search(locationName, function(status, result) {
+          console.log(`搜索结果状态: ${status}`, result ? '有结果' : '无结果');
+          
+          if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
+            const poi = result.poiList.pois[0];
+            const poiPosition = [poi.location.lng, poi.location.lat];
+            const poiType = poi.type || getDefaultType(locationType);
+            
+            console.log(`搜索成功: ${locationName}`, poiPosition);
+            
+            // 缓存搜索结果
+            locationCache[locationName] = {
+              position: poiPosition,
+              type: poiType
+            };
+            
+            // 显示在地图上
+            showLocationOnMap(locationName, poiPosition, poiType, locationType, showPOIs);
+          } else {
+            console.error(`搜索失败: ${locationName}`);
+            
+            // 使用备选方法 - 尝试使用默认坐标
+            useFallbackLocation(locationName, locationType, showPOIs);
+          }
+        });
+      } catch (error) {
+        console.error(`搜索位置出错: ${locationName}`, error);
+        useFallbackLocation(locationName, locationType, showPOIs);
+      }
+    }
+    
+    // 显示位置在地图上
+    function showLocationOnMap(name, position, poiType, locationType, showPOIs) {
+      console.log(`在地图上显示: ${name}，坐标: ${position}，POI类型: ${poiType}，位置类型: ${locationType}`);
+      
+      try {
+        // 创建标记
         const marker = new AMap.Marker({
           position: position,
           title: name,
-          animation: 'AMAP_ANIMATION_DROP', // 添加动画效果
-          icon: new AMap.Icon({
-            size: [32, 32],
-            image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png',
-            imageSize: [32, 32]
-          })
+          animation: 'AMAP_ANIMATION_DROP',
+          icon: getMarkerIcon(locationType)
         });
+        
+        // 添加到地图
+        marker.setMap(map);
+        mapMarkers.push(marker);
         
         // 创建信息窗体
         const infoWindow = new AMap.InfoWindow({
-          content: `
-            <div style="padding:10px;max-width:200px;">
-              <h3 style="margin:0 0 5px;font-size:16px;">${name}</h3>
-              <p style="margin:0;font-size:13px;color:#666;">${type}</p>
-              <div style="margin-top:10px;text-align:center;">
-                <a href="https://www.baidu.com/s?wd=${encodeURIComponent(name + ' 旅游')}" target="_blank" style="color:#2563eb;text-decoration:none;font-size:12px;">
-                  查看更多信息 →
-                </a>
-              </div>
-            </div>
-          `,
+          content: createInfoWindowContent(name, poiType, locationType),
           offset: new AMap.Pixel(0, -30)
         });
         
-        // 自动打开信息窗体
+        // 打开信息窗体
         infoWindow.open(map, position);
         
         // 点击标记时打开信息窗体
@@ -1325,17 +1269,244 @@
           infoWindow.open(map, position);
         });
         
-        // 添加到地图
-        marker.setMap(map);
-        mapMarkers.push(marker);
+        // 根据位置类型设置合适的缩放级别
+        const zoom = getZoomLevel(locationType);
         
-        // 调整视图
+        // 调整地图视图
         map.setCenter(position);
-        map.setZoom(15); // 景点层级放大一些
+        map.setZoom(zoom);
         
-        console.log(`景点 "${name}" 标记添加成功`);
+        // 如果是城市或省份，并且需要显示POI
+        if ((locationType === 'city' || locationType === 'province') && showPOIs) {
+          console.log(`显示 ${name} 的POI`);
+          showAreaPOIs(name, position);
+        }
+        
+        // 添加区域指示 - 根据位置类型显示不同大小的圆圈
+        if (locationType === 'province' || locationType === 'city') {
+          const radius = locationType === 'province' ? 100000 : 30000;
+          
+          const circle = new AMap.Circle({
+            center: position,
+            radius: radius,
+            fillColor: '#CCF3FF',
+            fillOpacity: 0.3,
+            strokeColor: '#2563eb',
+            strokeWeight: 2,
+            strokeOpacity: 0.8
+          });
+          
+          circle.setMap(map);
+          mapMarkers.push(circle); // 将圆圈加入标记数组，以便后续清除
+        }
+        
+        console.log(`${name} 在地图上显示成功`);
       } catch (error) {
-        console.error(`添加景点 "${name}" 标记时出错:`, error);
+        console.error(`显示位置出错: ${name}`, error);
+      }
+    }
+    
+    // 为地区显示兴趣点
+    function showAreaPOIs(areaName, centerPosition) {
+      try {
+        // 搜索该地区的旅游景点
+        const placeSearch = new AMap.PlaceSearch({
+          city: areaName,
+          type: '风景名胜',
+          pageSize: 5,
+          pageIndex: 1
+        });
+        
+        placeSearch.searchNearBy('景点', centerPosition, 50000, function(status, result) {
+          if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
+            const pois = result.poiList.pois;
+            
+            console.log(`找到 ${areaName} 附近的 ${pois.length} 个景点`);
+            
+            // 添加景点标记
+            pois.forEach(poi => {
+              if (poi.location) {
+                const poiMarker = new AMap.Marker({
+                  position: [poi.location.lng, poi.location.lat],
+                  title: poi.name,
+                  icon: new AMap.Icon({
+                    size: [24, 24],
+                    image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+                    imageSize: [24, 24]
+                  })
+                });
+                
+                // 创建信息窗体
+                const infoWindow = new AMap.InfoWindow({
+                  content: `
+                    <div style="padding:10px;max-width:200px;">
+                      <h3 style="margin:0 0 5px;font-size:14px;">${poi.name}</h3>
+                      <p style="margin:0;font-size:12px;color:#666;">${poi.type || '景点'}</p>
+                      ${poi.address ? `<p style="margin:3px 0;font-size:12px;color:#666;">地址: ${poi.address}</p>` : ''}
+                    </div>
+                  `,
+                  offset: new AMap.Pixel(0, -24)
+                });
+                
+                // 点击标记时打开信息窗体
+                poiMarker.on('click', function() {
+                  infoWindow.open(map, [poi.location.lng, poi.location.lat]);
+                });
+                
+                // 添加到地图
+                poiMarker.setMap(map);
+                mapMarkers.push(poiMarker);
+              }
+            });
+          } else {
+            console.log(`未找到 ${areaName} 附近的景点或搜索失败`);
+          }
+        });
+      } catch (error) {
+        console.error(`搜索 ${areaName} 的POI出错`, error);
+      }
+    }
+    
+    // 根据位置类型获取默认缩放级别
+    function getZoomLevel(locationType) {
+      switch (locationType) {
+        case 'landmark':
+          return 15;
+        case 'city':
+          return 11;
+        case 'province':
+          return 7;
+        default:
+          return 10;
+      }
+    }
+    
+    // 获取标记图标
+    function getMarkerIcon(locationType) {
+      // 不同位置类型使用不同颜色的标记
+      let iconUrl = 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png';
+      
+      switch (locationType) {
+        case 'landmark':
+          iconUrl = 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png';
+          break;
+        case 'city':
+          iconUrl = 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png';
+          break;
+        case 'province':
+          iconUrl = 'https://webapi.amap.com/theme/v1.3/markers/n/mark_g.png';
+          break;
+      }
+      
+      return new AMap.Icon({
+        size: [32, 32],
+        image: iconUrl,
+        imageSize: [32, 32]
+      });
+    }
+    
+    // 创建信息窗体内容
+    function createInfoWindowContent(name, poiType, locationType) {
+      let typeLabel = '位置';
+      
+      switch (locationType) {
+        case 'landmark':
+          typeLabel = '景点';
+          break;
+        case 'city':
+          typeLabel = '城市';
+          break;
+        case 'province':
+          typeLabel = '省份/地区';
+          break;
+      }
+      
+      return `
+        <div style="padding:10px;max-width:200px;">
+          <h3 style="margin:0 0 5px;font-size:16px;">${name}</h3>
+          <p style="margin:0;font-size:13px;color:#666;">${typeLabel}: ${poiType || name}</p>
+          <div style="margin-top:10px;text-align:center;">
+            <a href="https://www.baidu.com/s?wd=${encodeURIComponent(name + ' 旅游')}" target="_blank" style="color:#2563eb;text-decoration:none;font-size:12px;">
+              查看更多信息 →
+            </a>
+          </div>
+        </div>
+      `;
+    }
+    
+    // 获取位置类型的默认类型描述
+    function getDefaultType(locationType) {
+      switch (locationType) {
+        case 'landmark':
+          return '景点';
+        case 'city':
+          return '城市';
+        case 'province':
+          return '省份/地区';
+        default:
+          return '位置';
+      }
+    }
+    
+    // 使用备选方法 - 当高德地图API搜索失败时
+    function useFallbackLocation(locationName, locationType, showPOIs) {
+      console.log(`使用备选方法定位: ${locationName}`);
+      
+      // 主要城市和省份的默认坐标
+      const defaultCoordinates = {
+        // 省级行政区
+        '北京': [116.4074, 39.9042],
+        '天津': [117.1908, 39.1256],
+        '上海': [121.4737, 31.2304],
+        '重庆': [106.5528, 29.5630],
+        '河北': [114.5208, 38.0487],
+        '山西': [112.5489, 37.8706],
+        '辽宁': [123.4315, 41.8057],
+        '吉林': [125.3245, 43.8868],
+        '黑龙江': [126.6424, 45.7575],
+        '江苏': [118.7969, 32.0603],
+        '浙江': [120.1551, 30.2741],
+        '安徽': [117.2900, 31.8606],
+        '福建': [119.2964, 26.0742],
+        '江西': [115.8999, 28.6763],
+        '山东': [117.0009, 36.6759],
+        '河南': [113.6913, 34.7586],
+        '湖北': [114.3413, 30.5844],
+        '湖南': [112.9833, 28.2161],
+        '广东': [113.2644, 23.1291],
+        '海南': [110.3486, 20.0312],
+        '四川': [104.0668, 30.5728],
+        '贵州': [106.7104, 26.6745],
+        '云南': [102.7029, 25.0464],
+        '陕西': [108.9543, 34.2778],
+        '甘肃': [103.8343, 36.0611],
+        '青海': [101.7790, 36.6232],
+        '西藏': [91.1170, 29.6470],
+        '宁夏': [106.2309, 38.4872],
+        '新疆': [87.6177, 43.7925],
+        '内蒙古': [111.7518, 40.8417],
+        '广西': [108.3203, 22.8216],
+        '香港': [114.1736, 22.2824],
+        '澳门': [113.5491, 22.1987],
+        '台湾': [121.5200, 25.0330]
+      };
+      
+      // 如果有默认坐标
+      if (defaultCoordinates[locationName]) {
+        const position = defaultCoordinates[locationName];
+        const type = getDefaultType(locationType);
+        
+        // 缓存位置
+        locationCache[locationName] = {
+          position: position,
+          type: type
+        };
+        
+        // 显示在地图上
+        showLocationOnMap(locationName, position, type, locationType, showPOIs);
+      } else {
+        console.error(`未找到 ${locationName} 的备选坐标`);
+        alert(`无法在地图上找到 "${locationName}" 的位置`);
       }
     }
 
