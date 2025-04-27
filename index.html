@@ -240,6 +240,12 @@
   <div class="container">
     <a href="#about" class="about-link" onclick="showAbout(); return false;">关于项目</a>
     
+    <!-- 添加测试区域 -->
+    <div style="position:absolute;top:20px;left:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+      <button onclick="testHighlightBeijing()" style="margin-right:5px;padding:5px 10px;">高亮北京</button>
+      <button onclick="testSearchBeijingPOIs()" style="padding:5px 10px;">显示北京景点</button>
+    </div>
+    
     <div id="map">
       <div style="display:flex;justify-content:center;align-items:center;height:100%;background:#f5f7f9;">
         <div style="text-align:center;">
@@ -440,12 +446,24 @@
           console.log('地图控件添加完成');
         });
         
-        // 标记地图已就绪
-        mapReady = true;
-        console.log('地图已就绪，可以使用');
-        
-        // 触发自定义事件
-        window.dispatchEvent(new CustomEvent('mapReady'));
+        // 添加地图加载完成事件
+        map.on('complete', function() {
+          console.log('地图渲染完成事件触发');
+          
+          // 标记地图已就绪
+          mapReady = true;
+          console.log('地图已就绪，可以使用');
+          
+          // 触发自定义事件
+          window.dispatchEvent(new CustomEvent('mapReady'));
+          
+          // 添加测试标记，确认地图功能正常
+          console.log('添加测试标记到北京位置');
+          new AMap.Marker({
+            position: [116.4074, 39.9042], // 北京坐标
+            title: '测试标记 - 北京'
+          }).addTo(map);
+        });
       } catch (error) {
         console.error('初始化地图出错:', error);
         // 显示错误信息到界面
@@ -727,45 +745,109 @@
       }
     });
     
+    // 测试函数 - 直接高亮北京
+    async function testHighlightBeijing() {
+      console.log('测试高亮北京');
+      try {
+        // 等待地图就绪
+        await waitForMap();
+        console.log('地图已就绪，开始高亮北京');
+        highlightCity('北京');
+      } catch (error) {
+        console.error('测试高亮北京失败:', error);
+        alert('测试失败: ' + error.message);
+      }
+    }
+    
+    // 测试函数 - 直接显示北京景点
+    async function testSearchBeijingPOIs() {
+      console.log('测试显示北京景点');
+      try {
+        // 等待地图就绪
+        await waitForMap();
+        console.log('地图已就绪，开始搜索北京景点');
+        searchCityPOIs('北京');
+      } catch (error) {
+        console.error('测试显示北京景点失败:', error);
+        alert('测试失败: ' + error.message);
+      }
+    }
+    
     // 高德地图功能 - 显示城市边界
     function highlightCity(cityName) {
+      console.log('开始高亮城市:', cityName);
+      
+      // 检查地图对象
+      if (!map) {
+        console.error('无法高亮城市 - 地图对象不存在');
+        return;
+      }
+      
+      // 检查输入
+      if (!cityName) {
+        console.error('无法高亮城市 - 城市名称为空');
+        return;
+      }
+      
       // 清除之前的城市边界
       if (cityPolygon) {
+        console.log('清除上一个城市的边界');
         map.remove(cityPolygon);
         cityPolygon = null;
       }
       
+      console.log('使用AMap.DistrictSearch查询城市边界');
       // 使用行政区划查询
-      AMap.plugin('AMap.DistrictSearch', function() {
-        const districtSearch = new AMap.DistrictSearch({
-          level: 'city',
-          subdistrict: 0,
-          extensions: 'all'
-        });
-        
-        districtSearch.search(cityName, function(status, result) {
-          if (status === 'complete' && result.districtList.length > 0) {
-            const district = result.districtList[0];
-            const boundaries = district.boundaries;
+      try {
+        AMap.plugin('AMap.DistrictSearch', function() {
+          console.log('DistrictSearch插件已加载');
+          
+          const districtSearch = new AMap.DistrictSearch({
+            level: 'city',
+            subdistrict: 0,
+            extensions: 'all'
+          });
+          
+          console.log('开始搜索城市:', cityName);
+          districtSearch.search(cityName, function(status, result) {
+            console.log('DistrictSearch结果:', status, result ? '有结果' : '无结果');
             
-            if (boundaries) {
-              // 绘制城市边界
-              cityPolygon = new AMap.Polygon({
-                path: boundaries,
-                fillColor: '#CCF3FF',
-                fillOpacity: 0.4,
-                strokeColor: '#2563eb',
-                strokeWeight: 2,
-                strokeOpacity: 0.8
-              });
+            if (status === 'complete' && result.districtList && result.districtList.length > 0) {
+              const district = result.districtList[0];
+              console.log('找到城市:', district.name);
               
-              map.add(cityPolygon);
-              // 缩放地图以适应城市边界
-              map.setFitView([cityPolygon]);
+              const boundaries = district.boundaries;
+              console.log('边界数据:', boundaries ? `有${boundaries.length}组数据` : '无边界数据');
+              
+              if (boundaries) {
+                // 绘制城市边界
+                console.log('创建边界多边形');
+                cityPolygon = new AMap.Polygon({
+                  path: boundaries,
+                  fillColor: '#CCF3FF',
+                  fillOpacity: 0.4,
+                  strokeColor: '#2563eb',
+                  strokeWeight: 2,
+                  strokeOpacity: 0.8
+                });
+                
+                console.log('添加边界到地图');
+                map.add(cityPolygon);
+                // 缩放地图以适应城市边界
+                console.log('调整地图视图以适应边界');
+                map.setFitView([cityPolygon]);
+                console.log('城市高亮完成');
+              } else {
+                console.error('城市无边界数据');
+              }
+            } else {
+              console.error('城市查询失败:', status, result);
             }
-          }
+          });
         });
-      });
+      } catch (error) {
+        console.error('DistrictSearch插件加载或使用错误:', error);
+      }
     }
     
     // 高德地图功能 - 搜索城市景点
@@ -911,6 +993,32 @@
       console.log('AI回答:', aiResponse);
       
       try {
+        // 判断是否有地图对象
+        if (!map) {
+          console.error('地图对象不存在!');
+          
+          // 通过提示让用户知道问题
+          const mapDiv = document.getElementById('map');
+          if (mapDiv) {
+            const warningDiv = document.createElement('div');
+            warningDiv.style.position = 'absolute';
+            warningDiv.style.bottom = '10px';
+            warningDiv.style.left = '10px';
+            warningDiv.style.background = 'rgba(255,0,0,0.7)';
+            warningDiv.style.color = 'white';
+            warningDiv.style.padding = '5px 10px';
+            warningDiv.style.borderRadius = '5px';
+            warningDiv.textContent = '地图未初始化，请刷新页面';
+            
+            mapDiv.appendChild(warningDiv);
+            
+            // 5秒后自动移除
+            setTimeout(() => warningDiv.remove(), 5000);
+          }
+          
+          return;
+        }
+        
         // 等待地图就绪
         console.log('等待地图就绪...');
         await waitForMap();
@@ -931,8 +1039,13 @@
           const primaryCity = cityMatches[0];
           console.log('主要城市:', primaryCity);
           
-          // 高亮城市
-          highlightCity(primaryCity);
+          // 直接尝试调用高亮函数
+          try {
+            console.log('直接调用highlightCity函数...');
+            highlightCity(primaryCity);
+          } catch (error) {
+            console.error('调用highlightCity失败:', error);
+          }
           
           // 如果回答中提到景点、游览、旅游等词语，搜索景点
           const tourismKeywords = ['景点', '游览', '旅游', '参观', '游玩', '景区', '名胜', '公园', '旅行'];
@@ -945,7 +1058,11 @@
           
           if (hasTourismContent) {
             console.log('搜索城市景点:', primaryCity);
-            searchCityPOIs(primaryCity);
+            try {
+              searchCityPOIs(primaryCity);
+            } catch (error) {
+              console.error('调用searchCityPOIs失败:', error);
+            }
           }
         } else {
           console.log('未找到城市名称，不进行地图操作');
