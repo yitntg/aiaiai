@@ -9,33 +9,6 @@ export function createBoundsForLocations(locations: Location[]): LatLngBoundsExp
 }
 
 /**
- * 获取默认的谷歌地图选项
- */
-export function getDefaultMapOptions(): google.maps.MapOptions {
-  return {
-    disableDefaultUI: false,
-    zoomControl: true,
-    mapTypeControl: true,
-    scaleControl: true,
-    streetViewControl: true,
-    rotateControl: true,
-    fullscreenControl: true,
-    styles: [
-      {
-        featureType: 'poi',
-        elementType: 'labels',
-        stylers: [{ visibility: 'on' }]
-      },
-      {
-        featureType: 'transit',
-        elementType: 'labels',
-        stylers: [{ visibility: 'on' }]
-      }
-    ]
-  };
-}
-
-/**
  * 计算两点之间的距离（使用 Haversine 公式）
  */
 export function calculateDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -68,13 +41,12 @@ export function filterLocationsByDistance(
 }
 
 /**
- * 将地址转换为坐标（这需要您自己实现，或使用第三方服务）
+ * 将地址转换为坐标（模拟实现）
  */
 export async function geocodeAddress(address: string): Promise<Location | null> {
   try {
-    // 这里应该实现地理编码逻辑
-    // 由于我们不使用 Google Maps API，您可以使用其他服务如 Nominatim (OpenStreetMap)
-    // 下面是一个模拟示例
+    // 这里是模拟实现
+    // 在实际应用中，可以使用 Nominatim (OpenStreetMap) 的免费 API
     return {
       id: `id-${Date.now()}`,
       lat: 39.9042, // 默认北京坐标

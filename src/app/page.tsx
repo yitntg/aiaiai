@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import ChatBox from '../features/chat/components/ChatBox';
 import FullscreenMap from '../features/map/components/FullscreenMap';
 import { Location } from '../types/map';
@@ -28,6 +29,15 @@ export default function Home() {
   
   return (
     <div className="h-screen w-screen overflow-hidden relative">
+      {/* 顶部导航 */}
+      <div className="absolute top-2 right-4 z-10">
+        <Link href="/about">
+          <span className="px-3 py-1 bg-white bg-opacity-80 rounded-md text-blue-600 hover:bg-opacity-100 text-sm font-medium transition-all">
+            关于项目
+          </span>
+        </Link>
+      </div>
+      
       {/* 全屏地图背景 */}
       <FullscreenMap 
         locations={locations} 

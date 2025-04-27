@@ -6,7 +6,11 @@ const nextConfig = {
     emotion: true,
   },
   // Cloudflare Pages 适配
-  output: 'standalone',
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
+  trailingSlash: true,
 };
 
 module.exports = nextConfig; 
