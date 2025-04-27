@@ -348,46 +348,54 @@
         const response = await fetch('/api/gaode-key');
         console.log('API密钥请求状态:', response.status, response.statusText);
         
+        // 显示更详细的错误信息
         if (!response.ok) {
-          throw new Error(`无法获取地图API密钥: ${response.status} ${response.statusText}`);
+          const errorText = await response.text();
+          console.error('获取API密钥失败，详细信息:', errorText);
+          throw new Error(`无法获取地图API密钥: ${response.status} ${response.statusText} - ${errorText}`);
         }
         
         const data = await response.json();
-        console.log('获取到API密钥响应:', data.error ? '有错误' : '成功');
+        console.log('获取到API密钥响应:', data);
         
         if (data.error || !data.key) {
           throw new Error(data.error || '无效的API密钥');
         }
         
         const apiKey = data.key;
-        console.log('API密钥获取成功, 开始加载地图SDK...');
+        console.log('API密钥获取成功:', apiKey.substring(0, 3) + '***', '开始加载地图SDK...');
         
         // 创建高德地图脚本
         return new Promise((resolve, reject) => {
           // 加载主地图API - 使用正确的Web端JavaScript API接口
           const mapScript = document.createElement('script');
-          mapScript.src = `https://webapi.amap.com/maps?v=2.0&key=${apiKey}&plugin=AMap.Scale,AMap.ToolBar,AMap.DistrictSearch,AMap.PlaceSearch,AMap.Driving`;
+          mapScript.src = `https://webapi.amap.com/maps?v=2.0&key=${apiKey}&plugin=AMap.Scale,AMap.ToolBar,AMap.DistrictSearch,AMap.PlaceSearch,AMap.Driving&callback=initAMap`;
           mapScript.async = true;
           
-          mapScript.onload = () => {
+          // 添加全局回调函数
+          window.initAMap = function() {
+            console.log('高德地图API加载成功 - 回调函数触发');
+            
             // 加载UI组件库
             const uiScript = document.createElement('script');
             uiScript.src = 'https://webapi.amap.com/ui/1.1/main.js?v=1.1';
             uiScript.async = true;
             
             uiScript.onload = () => {
-              console.log('高德地图SDK和UI库加载成功');
+              console.log('高德地图UI库加载成功');
               resolve(); // 两个脚本都加载完成
             };
             
-            uiScript.onerror = () => {
+            uiScript.onerror = (e) => {
+              console.error('无法加载高德地图UI组件:', e);
               reject(new Error('无法加载高德地图UI组件'));
             };
             
             document.head.appendChild(uiScript);
           };
           
-          mapScript.onerror = () => {
+          mapScript.onerror = (e) => {
+            console.error('无法加载高德地图API:', e);
             reject(new Error('无法加载高德地图API'));
           };
           
@@ -402,6 +410,10 @@
             <div style="display:flex;justify-content:center;align-items:center;height:100%;flex-direction:column;background:#f9f9f9;">
               <h3 style="color:#e74c3c">地图加载失败</h3>
               <p>${error.message}</p>
+              <p>请检查控制台获取更多详细信息</p>
+              <button onclick="location.reload()" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;margin-top:10px;">
+                重新加载
+              </button>
             </div>
           `;
         }
@@ -1050,6 +1062,14 @@
       }
     }
 
+    // 添加全局错误处理
+    window.addEventListener('error', function(event) {
+      console.error('全局错误:', event.message, event.filename, event.lineno, event.colno);
+      if (event.message.includes('AMap') || event.filename.includes('amap')) {
+        alert('高德地图API加载或使用出错，请查看控制台获取详细信息');
+      }
+    });
+
     // 添加测试功能
     document.addEventListener('DOMContentLoaded', function() {
       // 添加测试按钮
@@ -1075,10 +1095,17 @@
       
       testButton.addEventListener('click', function() {
         console.log('测试按钮点击 - 高亮北京');
-        if (map) {
-          highlightCity('北京');
-        } else {
-          alert('地图尚未加载完成');
+        try {
+          if (map) {
+            console.log('地图对象存在，调用highlightCity函数');
+            highlightCity('北京');
+          } else {
+            console.error('地图对象不存在');
+            alert('地图尚未加载完成');
+          }
+        } catch (error) {
+          console.error('高亮北京时出错:', error);
+          alert('高亮北京时出错: ' + error.message);
         }
       });
       
@@ -1093,16 +1120,78 @@
       
       poiButton.addEventListener('click', function() {
         console.log('测试按钮点击 - 搜索北京景点');
-        if (map) {
-          searchCityPOIs('北京');
-        } else {
-          alert('地图尚未加载完成');
+        try {
+          if (map) {
+            console.log('地图对象存在，调用searchCityPOIs函数');
+            searchCityPOIs('北京');
+          } else {
+            console.error('地图对象不存在');
+            alert('地图尚未加载完成');
+          }
+        } catch (error) {
+          console.error('搜索北京景点时出错:', error);
+          alert('搜索北京景点时出错: ' + error.message);
+        }
+      });
+      
+      const checkApiButton = document.createElement('button');
+      checkApiButton.textContent = '检查API密钥';
+      checkApiButton.style.padding = '8px 16px';
+      checkApiButton.style.marginTop = '10px';
+      checkApiButton.style.backgroundColor = '#10b981';
+      checkApiButton.style.color = 'white';
+      checkApiButton.style.border = 'none';
+      checkApiButton.style.borderRadius = '4px';
+      checkApiButton.style.cursor = 'pointer';
+      
+      checkApiButton.addEventListener('click', async function() {
+        try {
+          console.log('检查API密钥...');
+          const response = await fetch('/api/gaode-key');
+          const data = await response.json();
+          
+          if (data.error) {
+            alert('API密钥错误: ' + data.error);
+          } else if (data.key) {
+            alert('API密钥获取成功! 密钥前几位: ' + data.key.substring(0, 3) + '***');
+          } else {
+            alert('API响应异常: ' + JSON.stringify(data));
+          }
+        } catch (error) {
+          console.error('检查API密钥时出错:', error);
+          alert('检查API密钥时出错: ' + error.message);
         }
       });
       
       testDiv.appendChild(testButton);
       testDiv.appendChild(poiButton);
+      testDiv.appendChild(document.createElement('br'));
+      testDiv.appendChild(checkApiButton);
       document.body.appendChild(testDiv);
+
+      // 手动初始化地图
+      const initMapButton = document.createElement('button');
+      initMapButton.textContent = '手动初始化地图';
+      initMapButton.style.padding = '8px 16px';
+      initMapButton.style.marginTop = '10px';
+      initMapButton.style.backgroundColor = '#f59e0b';
+      initMapButton.style.color = 'white';
+      initMapButton.style.border = 'none';
+      initMapButton.style.borderRadius = '4px';
+      initMapButton.style.cursor = 'pointer';
+      
+      initMapButton.addEventListener('click', function() {
+        try {
+          console.log('手动初始化地图...');
+          initMap();
+        } catch (error) {
+          console.error('手动初始化地图时出错:', error);
+          alert('初始化地图时出错: ' + error.message);
+        }
+      });
+      
+      testDiv.appendChild(document.createElement('br'));
+      testDiv.appendChild(initMapButton);
     });
   </script>
 </body>
