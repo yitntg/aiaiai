@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 旅行助手</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- 添加高德地图SDK -->
-  <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=您的高德地图API密钥"></script>
-  <script type="text/javascript" src="https://webapi.amap.com/ui/1.1/main.js"></script>
+  <!-- 高德地图SDK将在JavaScript中动态加载 -->
   <style>
     * {
       margin: 0;
@@ -242,7 +240,18 @@
   <div class="container">
     <a href="#about" class="about-link" onclick="showAbout(); return false;">关于项目</a>
     
-    <div id="map"></div>
+    <div id="map">
+      <div style="display:flex;justify-content:center;align-items:center;height:100%;background:#f5f7f9;">
+        <div style="text-align:center;">
+          <div style="margin-bottom:15px;">加载地图中...</div>
+          <div class="typing-indicator" style="justify-content:center;">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <div class="chat-container" id="chatContainer">
       <div class="chat-header">
@@ -330,27 +339,96 @@
     const sendBtn = document.getElementById('sendBtn');
     const aboutModal = document.getElementById('aboutModal');
     
-    // 初始化地图
-    function initMap() {
-      // 创建地图实例
-      map = new AMap.Map('map', {
-        zoom: 4,
-        center: [105.0, 35.0], // 中国中心点
-        viewMode: '2D'
-      });
-      
-      // 添加控件
-      map.plugin(['AMap.ToolBar', 'AMap.Scale'], function() {
-        // 添加工具条
-        const toolBar = new AMap.ToolBar({
-          position: 'RT'
-        });
-        map.addControl(toolBar);
+    // 动态加载高德地图SDK
+    async function loadMapSDK() {
+      try {
+        // 从API获取密钥
+        const response = await fetch('/api/gaode-key');
+        if (!response.ok) {
+          throw new Error('无法获取地图API密钥');
+        }
         
-        // 添加比例尺
-        const scale = new AMap.Scale();
-        map.addControl(scale);
-      });
+        const data = await response.json();
+        if (data.error || !data.key) {
+          throw new Error(data.error || '无效的API密钥');
+        }
+        
+        const apiKey = data.key;
+        
+        // 创建高德地图脚本
+        return new Promise((resolve, reject) => {
+          // 加载主地图API
+          const mapScript = document.createElement('script');
+          mapScript.src = `https://webapi.amap.com/maps?v=2.0&key=${apiKey}`;
+          mapScript.async = true;
+          
+          mapScript.onload = () => {
+            // 加载UI组件库
+            const uiScript = document.createElement('script');
+            uiScript.src = 'https://webapi.amap.com/ui/1.1/main.js';
+            uiScript.async = true;
+            
+            uiScript.onload = () => {
+              resolve(); // 两个脚本都加载完成
+            };
+            
+            uiScript.onerror = () => {
+              reject(new Error('无法加载高德地图UI组件'));
+            };
+            
+            document.head.appendChild(uiScript);
+          };
+          
+          mapScript.onerror = () => {
+            reject(new Error('无法加载高德地图API'));
+          };
+          
+          document.head.appendChild(mapScript);
+        });
+      } catch (error) {
+        console.error('加载地图SDK出错:', error);
+        // 显示错误消息
+        const mapDiv = document.getElementById('map');
+        if (mapDiv) {
+          mapDiv.innerHTML = `
+            <div style="display:flex;justify-content:center;align-items:center;height:100%;flex-direction:column;background:#f9f9f9;">
+              <h3 style="color:#e74c3c">地图加载失败</h3>
+              <p>${error.message}</p>
+            </div>
+          `;
+        }
+        throw error;
+      }
+    }
+    
+    // 初始化地图
+    async function initMap() {
+      try {
+        // 先加载地图SDK
+        await loadMapSDK();
+        
+        // 创建地图实例
+        map = new AMap.Map('map', {
+          zoom: 4,
+          center: [105.0, 35.0], // 中国中心点
+          viewMode: '2D'
+        });
+        
+        // 添加控件
+        map.plugin(['AMap.ToolBar', 'AMap.Scale'], function() {
+          // 添加工具条
+          const toolBar = new AMap.ToolBar({
+            position: 'RT'
+          });
+          map.addControl(toolBar);
+          
+          // 添加比例尺
+          const scale = new AMap.Scale();
+          map.addControl(scale);
+        });
+      } catch (error) {
+        console.error('初始化地图出错:', error);
+      }
     }
     
     // 页面加载完成后初始化地图
