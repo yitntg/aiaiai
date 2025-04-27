@@ -240,12 +240,6 @@
   <div class="container">
     <a href="#about" class="about-link" onclick="showAbout(); return false;">关于项目</a>
     
-    <!-- 添加测试区域 -->
-    <div style="position:absolute;top:20px;left:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
-      <button onclick="testHighlightBeijing()" style="margin-right:5px;padding:5px 10px;">高亮北京</button>
-      <button onclick="testSearchBeijingPOIs()" style="padding:5px 10px;">显示北京景点</button>
-    </div>
-    
     <div id="map">
       <div style="display:flex;justify-content:center;align-items:center;height:100%;background:#f5f7f9;">
         <div style="text-align:center;">
@@ -459,10 +453,11 @@
           
           // 添加测试标记，确认地图功能正常
           console.log('添加测试标记到北京位置');
-          new AMap.Marker({
+          const marker = new AMap.Marker({
             position: [116.4074, 39.9042], // 北京坐标
             title: '测试标记 - 北京'
-          }).addTo(map);
+          });
+          marker.setMap(map); // 使用setMap而不是addTo
         });
       } catch (error) {
         console.error('初始化地图出错:', error);
@@ -745,34 +740,6 @@
       }
     });
     
-    // 测试函数 - 直接高亮北京
-    async function testHighlightBeijing() {
-      console.log('测试高亮北京');
-      try {
-        // 等待地图就绪
-        await waitForMap();
-        console.log('地图已就绪，开始高亮北京');
-        highlightCity('北京');
-      } catch (error) {
-        console.error('测试高亮北京失败:', error);
-        alert('测试失败: ' + error.message);
-      }
-    }
-    
-    // 测试函数 - 直接显示北京景点
-    async function testSearchBeijingPOIs() {
-      console.log('测试显示北京景点');
-      try {
-        // 等待地图就绪
-        await waitForMap();
-        console.log('地图已就绪，开始搜索北京景点');
-        searchCityPOIs('北京');
-      } catch (error) {
-        console.error('测试显示北京景点失败:', error);
-        alert('测试失败: ' + error.message);
-      }
-    }
-    
     // 高德地图功能 - 显示城市边界
     function highlightCity(cityName) {
       console.log('开始高亮城市:', cityName);
@@ -792,7 +759,7 @@
       // 清除之前的城市边界
       if (cityPolygon) {
         console.log('清除上一个城市的边界');
-        map.remove(cityPolygon);
+        map.remove([cityPolygon]);
         cityPolygon = null;
       }
       
@@ -832,7 +799,7 @@
                 });
                 
                 console.log('添加边界到地图');
-                map.add(cityPolygon);
+                cityPolygon.setMap(map);
                 // 缩放地图以适应城市边界
                 console.log('调整地图视图以适应边界');
                 map.setFitView([cityPolygon]);
@@ -892,7 +859,7 @@
               });
               
               // 添加到地图
-              map.add(marker);
+              marker.setMap(map);
               mapMarkers.push(marker);
             });
             
@@ -1076,10 +1043,67 @@
     function clearMapMarkers() {
       console.log('清除地图标记, 当前标记数:', mapMarkers.length);
       if (mapMarkers && mapMarkers.length > 0) {
-        map.remove(mapMarkers);
+        mapMarkers.forEach(marker => {
+          marker.setMap(null);
+        });
         mapMarkers.length = 0;
       }
     }
+
+    // 添加测试功能
+    document.addEventListener('DOMContentLoaded', function() {
+      // 添加测试按钮
+      const testDiv = document.createElement('div');
+      testDiv.style.position = 'absolute';
+      testDiv.style.top = '80px';
+      testDiv.style.left = '20px';
+      testDiv.style.zIndex = '1000';
+      testDiv.style.backgroundColor = 'white';
+      testDiv.style.padding = '10px';
+      testDiv.style.borderRadius = '5px';
+      testDiv.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+      
+      const testButton = document.createElement('button');
+      testButton.textContent = '测试标记北京';
+      testButton.style.padding = '8px 16px';
+      testButton.style.marginRight = '10px';
+      testButton.style.backgroundColor = '#2563eb';
+      testButton.style.color = 'white';
+      testButton.style.border = 'none';
+      testButton.style.borderRadius = '4px';
+      testButton.style.cursor = 'pointer';
+      
+      testButton.addEventListener('click', function() {
+        console.log('测试按钮点击 - 高亮北京');
+        if (map) {
+          highlightCity('北京');
+        } else {
+          alert('地图尚未加载完成');
+        }
+      });
+      
+      const poiButton = document.createElement('button');
+      poiButton.textContent = '显示北京景点';
+      poiButton.style.padding = '8px 16px';
+      poiButton.style.backgroundColor = '#2563eb';
+      poiButton.style.color = 'white';
+      poiButton.style.border = 'none';
+      poiButton.style.borderRadius = '4px';
+      poiButton.style.cursor = 'pointer';
+      
+      poiButton.addEventListener('click', function() {
+        console.log('测试按钮点击 - 搜索北京景点');
+        if (map) {
+          searchCityPOIs('北京');
+        } else {
+          alert('地图尚未加载完成');
+        }
+      });
+      
+      testDiv.appendChild(testButton);
+      testDiv.appendChild(poiButton);
+      document.body.appendChild(testDiv);
+    });
   </script>
 </body>
 </html> 
