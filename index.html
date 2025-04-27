@@ -1488,7 +1488,69 @@
         '广西': [108.3203, 22.8216],
         '香港': [114.1736, 22.2824],
         '澳门': [113.5491, 22.1987],
-        '台湾': [121.5200, 25.0330]
+        '台湾': [121.5200, 25.0330],
+        
+        // 著名景点坐标
+        '故宫': [116.3972, 39.9163],
+        '天安门': [116.3949, 39.9087],
+        '颐和园': [116.2752, 39.9987],
+        '长城': [116.0169, 40.3609], // 八达岭长城
+        '八达岭': [116.0169, 40.3609],
+        '香山': [116.1854, 39.9957],
+        '圆明园': [116.3019, 40.0069],
+        '天坛': [116.4058, 39.8822],
+        '鸟巢': [116.3967, 39.9929],
+        '水立方': [116.3906, 39.9944],
+        '南锣鼓巷': [116.4031, 39.9375],
+        '什刹海': [116.3847, 39.9442],
+        '前门大街': [116.3971, 39.9001],
+        '景山公园': [116.3969, 39.9257],
+        '北海公园': [116.3873, 39.9263],
+        
+        // 上海景点
+        '外滩': [121.4906, 31.2466],
+        '东方明珠': [121.4952, 31.2396],
+        '南浦大桥': [121.5034, 31.1953],
+        '城隍庙': [121.4923, 31.2271],
+        '七宝老街': [121.3531, 31.1566],
+        '田子坊': [121.4701, 31.2133],
+        '上海迪士尼': [121.6739, 31.1614],
+        '朱家角': [121.0529, 31.1075],
+        '豫园': [121.4921, 31.2274],
+        '陆家嘴': [121.5012, 31.2392],
+        '静安寺': [121.4453, 31.2246],
+        '黄浦江': [121.5028, 31.2339],
+        '南京路': [121.4737, 31.2366],
+        '外白渡桥': [121.4907, 31.2424],
+        
+        // 杭州景点
+        '西湖': [120.1399, 30.2358],
+        '西溪湿地': [120.0539, 30.2740],
+        '灵隐寺': [120.1058, 30.2417],
+        '六和塔': [120.1266, 30.2013],
+        '宋城': [120.0967, 30.1823],
+        
+        // 西安景点
+        '兵马俑': [109.2783, 34.3848],
+        '大唐芙蓉园': [108.9825, 34.2128],
+        '华清宫': [109.2173, 34.3667],
+        '大雁塔': [108.9646, 34.2229],
+        '钟楼': [108.9402, 34.2596],
+        '陕西历史博物馆': [108.9537, 34.2299],
+        
+        // 成都景点
+        '都江堰': [103.6167, 31.0037],
+        '武侯祠': [104.0487, 30.6428],
+        '宽窄巷子': [104.0633, 30.6713],
+        '杜甫草堂': [104.0329, 30.6682],
+        '青城山': [103.5655, 30.9144],
+        '大熊猫繁育研究基地': [104.1444, 30.7349],
+        '锦里': [104.0485, 30.6426],
+        
+        // 广州景点
+        '沙面': [113.2404, 23.1099],
+        '白云山': [113.2968, 23.1794],
+        '珠江': [113.2687, 23.1188]
       };
       
       // 如果有默认坐标
@@ -1506,9 +1568,197 @@
         showLocationOnMap(locationName, position, type, locationType, showPOIs);
       } else {
         console.error(`未找到 ${locationName} 的备选坐标`);
-        alert(`无法在地图上找到 "${locationName}" 的位置`);
+        
+        // 尝试使用相似地名
+        const similarLocation = findSimilarLocation(locationName, defaultCoordinates);
+        if (similarLocation) {
+          console.log(`找到相似位置: ${similarLocation}，使用其坐标`);
+          const position = defaultCoordinates[similarLocation];
+          const type = getDefaultType(locationType);
+          
+          // 缓存位置
+          locationCache[locationName] = {
+            position: position,
+            type: type
+          };
+          
+          // 显示在地图上
+          showLocationOnMap(locationName, position, type, locationType, showPOIs);
+        } else {
+          // 最后尝试使用所在城市或省份的位置
+          if (locationType === 'landmark') {
+            // 对于景点，尝试确定它所在的城市
+            const cityMatch = /(.+市|北京|上海|天津|重庆|香港|澳门)/.exec(locationName);
+            if (cityMatch && defaultCoordinates[cityMatch[1]]) {
+              console.log(`未找到景点位置，但可能在${cityMatch[1]}，使用城市位置`);
+              const position = defaultCoordinates[cityMatch[1]];
+              showLocationOnMap(locationName, position, '未知景点', locationType, showPOIs);
+              return;
+            }
+          }
+          
+          alert(`无法在地图上找到 "${locationName}" 的位置`);
+        }
       }
     }
+    
+    // 查找相似位置名称
+    function findSimilarLocation(name, coordsDatabase) {
+      // 如果地名包含另一个已知地名
+      for (const knownLocation in coordsDatabase) {
+        if (name.includes(knownLocation)) {
+          return knownLocation;
+        }
+      }
+      
+      // 如果是复合地名，尝试拆分
+      const parts = name.split(/[省市区县]/);
+      for (const part of parts) {
+        if (part && coordsDatabase[part]) {
+          return part;
+        }
+      }
+      
+      return null;
+    }
+    
+    // 处理WebGL上下文丢失
+    function setupWebGLErrorHandling() {
+      if (typeof window.handleWebGLContextLost === 'undefined') {
+        window.handleWebGLContextLost = true;
+        
+        // 监听WebGL上下文丢失事件
+        window.addEventListener('webglcontextlost', function(e) {
+          console.log('WebGL上下文丢失，尝试恢复...');
+          e.preventDefault(); // 允许恢复
+          
+          // 尝试延迟恢复地图
+          setTimeout(function() {
+            try {
+              if (map && typeof map.destroy === 'function') {
+                // 销毁旧地图实例
+                map.destroy();
+                map = null;
+                
+                // 重新创建地图容器
+                const mapContainer = document.getElementById('map');
+                mapContainer.innerHTML = `
+                  <div style="display:flex;justify-content:center;align-items:center;height:100%;background:#f5f7f9;">
+                    <div style="text-align:center;">
+                      <div style="margin-bottom:15px;">正在恢复地图...</div>
+                      <div class="typing-indicator" style="justify-content:center;">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                      </div>
+                    </div>
+                  </div>
+                `;
+                
+                // 延迟重新初始化地图
+                setTimeout(initMap, 1000);
+              }
+            } catch (error) {
+              console.error('恢复地图出错:', error);
+            }
+          }, 1000);
+        }, false);
+      }
+    }
+    
+    // 修改initMap函数，添加WebGL错误处理
+    const originalInitMap = initMap;
+    initMap = async function() {
+      try {
+        // 设置WebGL错误处理
+        setupWebGLErrorHandling();
+        
+        // 调用原始初始化函数
+        await originalInitMap();
+      } catch (error) {
+        console.error('地图初始化出错:', error);
+        
+        // 显示错误并提供重试选项
+        const mapDiv = document.getElementById('map');
+        if (mapDiv) {
+          mapDiv.innerHTML = `
+            <div style="display:flex;justify-content:center;align-items:center;height:100%;flex-direction:column;background:#f5f7f9;padding:20px;text-align:center;">
+              <h3 style="color:#e74c3c;margin-bottom:10px;">地图加载失败</h3>
+              <p style="margin-bottom:10px;">错误信息: ${error.message}</p>
+              <button onclick="retryInitMap()" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;">
+                重新加载地图
+              </button>
+            </div>
+          `;
+        }
+      }
+    };
+    
+    // 添加重试函数
+    window.retryInitMap = function() {
+      console.log('尝试重新加载地图...');
+      const mapDiv = document.getElementById('map');
+      if (mapDiv) {
+        mapDiv.innerHTML = `
+          <div style="display:flex;justify-content:center;align-items:center;height:100%;background:#f5f7f9;">
+            <div style="text-align:center;">
+              <div style="margin-bottom:15px;">加载地图中...</div>
+              <div class="typing-indicator" style="justify-content:center;">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
+      // 延迟调用初始化
+      setTimeout(initMap, 500);
+    };
+    
+    // 修改搜索方法，增强错误处理
+    const originalSearchLocation = searchLocation;
+    searchLocation = function(locationName, locationType, showPOIs) {
+      try {
+        // 先检查是否已经有备选坐标
+        const defaultCoordinates = {
+          '故宫': [116.3972, 39.9163],
+          '天安门': [116.3949, 39.9087],
+          '颐和园': [116.2752, 39.9987],
+          '长城': [116.0169, 40.3609],
+          '八达岭': [116.0169, 40.3609],
+          // 其他坐标已在useFallbackLocation函数中定义
+        };
+        
+        if (defaultCoordinates[locationName]) {
+          console.log(`${locationName}有预定义坐标，跳过搜索`);
+          const position = defaultCoordinates[locationName];
+          const type = getDefaultType(locationType);
+          
+          // 缓存位置
+          locationCache[locationName] = {
+            position: position,
+            type: type
+          };
+          
+          // 显示在地图上
+          showLocationOnMap(locationName, position, type, locationType, showPOIs);
+          return;
+        }
+        
+        // 调用原始搜索函数
+        originalSearchLocation(locationName, locationType, showPOIs);
+      } catch (error) {
+        console.error(`搜索位置出错: ${locationName}`, error);
+        useFallbackLocation(locationName, locationType, showPOIs);
+      }
+    };
+    
+    // 在页面加载时设置WebGL错误处理
+    document.addEventListener('DOMContentLoaded', function() {
+      setupWebGLErrorHandling();
+    });
 
     // 添加全局错误处理
     window.addEventListener('error', function(event) {
