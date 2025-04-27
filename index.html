@@ -945,6 +945,92 @@
       }
     }
 
+    // 从AI回答中提取地理信息并在地图上显示
+    async function processGeographicInfo(userInput, aiResponse) {
+      console.log('处理地理信息...');
+      console.log('用户输入:', userInput);
+      console.log('AI回答:', aiResponse);
+      
+      try {
+        // 判断是否有地图对象
+        if (!map) {
+          console.error('地图对象不存在!');
+          
+          // 通过提示让用户知道问题
+          const mapDiv = document.getElementById('map');
+          if (mapDiv) {
+            const warningDiv = document.createElement('div');
+            warningDiv.style.position = 'absolute';
+            warningDiv.style.bottom = '10px';
+            warningDiv.style.left = '10px';
+            warningDiv.style.background = 'rgba(255,0,0,0.7)';
+            warningDiv.style.color = 'white';
+            warningDiv.style.padding = '5px 10px';
+            warningDiv.style.borderRadius = '5px';
+            warningDiv.textContent = '地图未初始化，请刷新页面';
+            
+            mapDiv.appendChild(warningDiv);
+            
+            // 5秒后自动移除
+            setTimeout(() => warningDiv.remove(), 5000);
+          }
+          
+          return;
+        }
+        
+        // 等待地图就绪
+        console.log('等待地图就绪...');
+        await waitForMap();
+        console.log('地图已就绪，继续处理地理信息');
+        
+        // 提取城市名称
+        const cityRegex = /(北京|上海|广州|深圳|西安|成都|杭州|南京|重庆|武汉|长沙|厦门|苏州|天津|青岛|大连)/g;
+        const userMatches = userInput.match(cityRegex) || [];
+        const aiMatches = aiResponse.match(cityRegex) || [];
+        
+        // 合并去重
+        const cityMatches = [...new Set([...userMatches, ...aiMatches])];
+        
+        console.log('提取到的城市:', cityMatches);
+        
+        // 如果找到城市，高亮显示并搜索景点
+        if (cityMatches.length > 0) {
+          const primaryCity = cityMatches[0];
+          console.log('主要城市:', primaryCity);
+          
+          // 直接尝试调用高亮函数
+          try {
+            console.log('直接调用highlightCity函数...');
+            highlightCity(primaryCity);
+          } catch (error) {
+            console.error('调用highlightCity失败:', error);
+          }
+          
+          // 如果回答中提到景点、游览、旅游等词语，搜索景点
+          const tourismKeywords = ['景点', '游览', '旅游', '参观', '游玩', '景区', '名胜', '公园', '旅行'];
+          
+          const hasTourismContent = tourismKeywords.some(keyword => 
+            userInput.includes(keyword) || aiResponse.includes(keyword)
+          );
+          
+          console.log('包含旅游相关内容:', hasTourismContent);
+          
+          if (hasTourismContent) {
+            console.log('搜索城市景点:', primaryCity);
+            try {
+              searchCityPOIs(primaryCity);
+            } catch (error) {
+              console.error('调用searchCityPOIs失败:', error);
+            }
+          }
+        } else {
+          console.log('未找到城市名称，不进行地图操作');
+        }
+      } catch (error) {
+        console.error('处理地理信息时出错:', error);
+      }
+    }
+
     // 添加全局错误处理
     window.addEventListener('error', function(event) {
       console.error('全局错误:', event.message, event.filename, event.lineno, event.colno);
