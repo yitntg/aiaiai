@@ -12,8 +12,8 @@
 
 1. 克隆仓库
    ```bash
-   git clone https://github.com/yourusername/travel-assistant.git
-   cd travel-assistant
+   git clone https://github.com/yitntg/aiaiai.git
+   cd aiaiai
    ```
 
 2. 安装依赖
@@ -22,8 +22,11 @@
    ```
 
 3. 创建环境变量文件
-   - 复制 `.env.local.example` 到 `.env.local`
-   - 添加你的 Google Maps API 密钥
+   - 创建 `.env.local` 文件在项目根目录
+   - 添加 Google Maps API 密钥：
+     ```
+     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+     ```
 
 4. 启动开发服务器
    ```bash
@@ -39,6 +42,18 @@
 - TypeScript
 - Tailwind CSS
 - Google Maps API
+
+## 项目状态
+
+- 基本功能已实现
+- React 和 TypeScript 配置已完成
+- 代码已推送到 GitHub 仓库：[https://github.com/yitntg/aiaiai](https://github.com/yitntg/aiaiai)
+
+## 下一步
+
+- 添加更多旅行相关功能
+- 优化 AI 聊天体验
+- 添加用户认证
 
 ## 许可证
 
