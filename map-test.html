@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高德地图测试</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    .control-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 100;
+    }
+    button {
+      display: block;
+      margin: 5px 0;
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="control-panel">
+    <h3>地图控制</h3>
+    <button id="moveToShanghai">移动到上海</button>
+    <button id="addMarker">添加标记</button>
+    <button id="clearMarkers">清除标记</button>
+  </div>
+
+  <script>
+    // 存储标记
+    let markers = [];
+    let map = null;
+
+    // 初始化地图
+    function initMap() {
+      // 使用硬编码的测试密钥 - 仅用于测试，实际应用应该从服务器获取
+      const apiKey = "11ecd2e3f38dc74d74d0488e09d7a8b3"; // 这是从您的日志中获取的密钥
+      
+      // 加载高德地图脚本
+      const script = document.createElement('script');
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${apiKey}&plugin=AMap.Scale,AMap.ToolBar`;
+      script.async = true;
+      
+      script.onload = function() {
+        console.log('高德地图脚本加载成功');
+        createMap();
+      };
+      
+      script.onerror = function(e) {
+        console.error('高德地图脚本加载失败', e);
+        alert('地图加载失败，请检查网络连接或刷新页面');
+      };
+      
+      document.head.appendChild(script);
+    }
+
+    // 创建地图实例
+    function createMap() {
+      try {
+        console.log('创建地图实例...');
+        map = new AMap.Map('map', {
+          zoom: 4,
+          center: [105.0, 35.0], // 中国中心点
+          viewMode: '2D'
+        });
+        
+        // 添加控件
+        map.plugin(['AMap.ToolBar', 'AMap.Scale'], function() {
+          const toolBar = new AMap.ToolBar();
+          map.addControl(toolBar);
+          
+          const scale = new AMap.Scale();
+          map.addControl(scale);
+        });
+        
+        // 监听地图事件
+        map.on('complete', function() {
+          console.log('地图渲染完成');
+          
+          // 设置按钮事件
+          setupButtons();
+        });
+      } catch (error) {
+        console.error('创建地图实例失败:', error);
+        alert('创建地图失败: ' + error.message);
+      }
+    }
+
+    // 设置控制按钮事件
+    function setupButtons() {
+      // 移动到上海
+      document.getElementById('moveToShanghai').addEventListener('click', function() {
+        console.log('移动到上海');
+        map.setCenter([121.4737, 31.2304]);
+        map.setZoom(12);
+      });
+      
+      // 添加标记
+      document.getElementById('addMarker').addEventListener('click', function() {
+        const position = map.getCenter();
+        console.log('添加标记到当前中心点:', position);
+        
+        const marker = new AMap.Marker({
+          position: position,
+          title: '新标记 ' + new Date().toLocaleTimeString()
+        });
+        
+        marker.setMap(map);
+        markers.push(marker);
+      });
+      
+      // 清除标记
+      document.getElementById('clearMarkers').addEventListener('click', function() {
+        console.log('清除所有标记');
+        markers.forEach(marker => marker.setMap(null));
+        markers = [];
+      });
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html> 

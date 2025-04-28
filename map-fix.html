@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 旅行助手 - 修复版</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    
+    .debug-panel {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 1000;
+    }
+    
+    .debug-panel h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+    }
+    
+    .debug-panel button {
+      margin: 5px;
+      padding: 5px 10px;
+    }
+    
+    .loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.9);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 1000;
+    }
+    
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #94a3b8;
+      border-radius: 50%;
+      animation: typing-animation 1.4s infinite ease-in-out;
+    }
+    
+    .typing-dot:nth-child(1) {
+      animation-delay: 0s;
+    }
+    
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes typing-animation {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-5px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="map">
+      <div class="loading-indicator">
+        <div>加载地图中...</div>
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="debug-panel">
+      <h3>地图测试工具</h3>
+      <div>
+        <button id="moveToShanghai">移动到上海</button>
+        <button id="moveToBeiJing">移动到北京</button>
+        <button id="addMarker">添加标记</button>
+        <button id="clearMarkers">清除标记</button>
+        <button id="checkStatus">检查状态</button>
+        <button id="fixMapSize">修复地图尺寸</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 地图变量
+    let map = null;
+    let mapMarkers = [];
+    let mapReady = false;
+    
+    // 初始化高德地图
+    function initMap() {
+      console.log('开始加载高德地图...');
+      
+      // 使用硬编码的API密钥 (从您的日志中获取)
+      const apiKey = "11ecd2e3f38dc74d74d0488e09d7a8b3";
+      
+      // 创建脚本元素
+      const mapScript = document.createElement('script');
+      mapScript.src = `https://webapi.amap.com/maps?v=2.0&key=${apiKey}&plugin=AMap.Scale,AMap.ToolBar,AMap.DistrictSearch,AMap.PlaceSearch&callback=initAMap`;
+      mapScript.async = true;
+      
+      // 设置全局回调函数
+      window.initAMap = function() {
+        console.log('高德地图API加载成功 - 回调函数触发');
+        
+        // 加载UI组件库
+        const uiScript = document.createElement('script');
+        uiScript.src = 'https://webapi.amap.com/ui/1.1/main.js?v=1.1';
+        uiScript.async = true;
+        
+        uiScript.onload = () => {
+          console.log('高德地图UI库加载成功');
+          createMap();
+        };
+        
+        uiScript.onerror = (e) => {
+          console.error('无法加载高德地图UI组件:', e);
+          showError('无法加载高德地图UI组件');
+        };
+        
+        document.head.appendChild(uiScript);
+      };
+      
+      mapScript.onerror = (e) => {
+        console.error('无法加载高德地图API:', e);
+        showError('无法加载高德地图API');
+      };
+      
+      document.head.appendChild(mapScript);
+    }
+    
+    // 显示错误消息
+    function showError(message) {
+      const mapDiv = document.getElementById('map');
+      const loadingIndicator = document.querySelector('.loading-indicator');
+      
+      if (loadingIndicator) {
+        loadingIndicator.innerHTML = `
+          <h3 style="color:#e74c3c; margin-bottom: 10px;">地图加载失败</h3>
+          <p>${message}</p>
+          <button onclick="location.reload()" style="padding:8px 16px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer; margin-top:10px;">
+            重新加载
+          </button>
+        `;
+      }
+    }
+    
+    // 创建地图
+    function createMap() {
+      try {
+        console.log('创建地图实例...');
+        
+        // 移除加载指示器
+        const loadingIndicator = document.querySelector('.loading-indicator');
+        if (loadingIndicator) {
+          loadingIndicator.remove();
+        }
+        
+        // 创建地图实例
+        map = new AMap.Map('map', {
+          zoom: 4,
+          center: [105.0, 35.0], // 中国中心点
+          viewMode: '2D',
+          resizeEnable: true
+        });
+        
+        console.log('地图实例创建成功，添加控件...');
+        
+        // 添加控件
+        map.plugin(['AMap.ToolBar', 'AMap.Scale'], function() {
+          // 添加工具条
+          const toolBar = new AMap.ToolBar({
+            position: 'RT'
+          });
+          map.addControl(toolBar);
+          
+          // 添加比例尺
+          const scale = new AMap.Scale();
+          map.addControl(scale);
+          
+          console.log('地图控件添加完成');
+        });
+        
+        // 添加地图加载完成事件
+        map.on('complete', function() {
+          console.log('地图渲染完成事件触发');
+          
+          // 标记地图已就绪
+          mapReady = true;
+          console.log('地图已就绪，可以使用');
+          
+          // 触发自定义事件
+          window.dispatchEvent(new CustomEvent('mapReady'));
+          
+          // 添加测试标记，确认地图功能正常
+          console.log('添加测试标记到北京位置');
+          const marker = new AMap.Marker({
+            position: [116.4074, 39.9042], // 北京坐标
+            title: '测试标记 - 北京'
+          });
+          marker.setMap(map);
+          mapMarkers.push(marker);
+        });
+        
+        // 监听尺寸变化
+        window.addEventListener('resize', function() {
+          if (map) {
+            map.resize();
+          }
+        });
+        
+        // 绑定测试按钮事件
+        setupTestButtons();
+        
+      } catch (error) {
+        console.error('创建地图时出错:', error);
+        showError('创建地图失败: ' + error.message);
+      }
+    }
+    
+    // 设置测试按钮
+    function setupTestButtons() {
+      // 移动到上海
+      document.getElementById('moveToShanghai').addEventListener('click', function() {
+        if (!ensureMapInitialized()) return;
+        
+        console.log('移动到上海');
+        map.setCenter([121.4737, 31.2304]);
+        map.setZoom(12);
+        
+        // 添加标记
+        clearMapMarkers();
+        
+        // 添加上海标记
+        const marker = new AMap.Marker({
+          position: [121.4737, 31.2304],
+          title: '上海'
+        });
+        marker.setMap(map);
+        mapMarkers.push(marker);
+        
+        // 添加一些上海的POI
+        const shangHaiPOIs = [
+          { name: '外滩', position: [121.4906, 31.2466], type: '景区' },
+          { name: '东方明珠', position: [121.4952, 31.2396], type: '观光塔' },
+          { name: '豫园', position: [121.4921, 31.2274], type: '园林' }
+        ];
+        
+        shangHaiPOIs.forEach(poi => {
+          const poiMarker = new AMap.Marker({
+            position: poi.position,
+            title: poi.name,
+            icon: new AMap.Icon({
+              size: [24, 24],
+              image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png',
+              imageSize: [24, 24]
+            })
+          });
+          
+          poiMarker.setMap(map);
+          mapMarkers.push(poiMarker);
+          
+          // 添加点击事件
+          poiMarker.on('click', function() {
+            const infoWindow = new AMap.InfoWindow({
+              content: `
+                <div style="padding:10px;max-width:200px;">
+                  <h3 style="margin:0 0 5px;font-size:14px;">${poi.name}</h3>
+                  <p style="margin:0;font-size:12px;color:#666;">${poi.type}</p>
+                </div>
+              `,
+              offset: new AMap.Pixel(0, -24)
+            });
+            
+            infoWindow.open(map, poi.position);
+          });
+        });
+      });
+      
+      // 移动到北京
+      document.getElementById('moveToBeiJing').addEventListener('click', function() {
+        if (!ensureMapInitialized()) return;
+        
+        console.log('移动到北京');
+        map.setCenter([116.4074, 39.9042]);
+        map.setZoom(12);
+        
+        // 添加标记
+        clearMapMarkers();
+        
+        const marker = new AMap.Marker({
+          position: [116.4074, 39.9042],
+          title: '北京'
+        });
+        marker.setMap(map);
+        mapMarkers.push(marker);
+      });
+      
+      // 添加标记
+      document.getElementById('addMarker').addEventListener('click', function() {
+        if (!ensureMapInitialized()) return;
+        
+        const center = map.getCenter();
+        console.log('添加标记到当前中心点:', center);
+        
+        const marker = new AMap.Marker({
+          position: [center.lng, center.lat],
+          title: '新标记 ' + new Date().toLocaleTimeString()
+        });
+        
+        marker.setMap(map);
+        mapMarkers.push(marker);
+      });
+      
+      // 清除标记
+      document.getElementById('clearMarkers').addEventListener('click', function() {
+        clearMapMarkers();
+      });
+      
+      // 检查状态
+      document.getElementById('checkStatus').addEventListener('click', function() {
+        if (!map) {
+          alert('地图未初始化');
+          return;
+        }
+        
+        const status = {
+          中心点: map.getCenter(),
+          缩放级别: map.getZoom(),
+          标记数: mapMarkers.length,
+          地图就绪: mapReady,
+          容器尺寸: {
+            宽: map.getContainer().offsetWidth,
+            高: map.getContainer().offsetHeight
+          }
+        };
+        
+        alert('地图状态: ' + JSON.stringify(status, null, 2));
+      });
+      
+      // 修复地图尺寸
+      document.getElementById('fixMapSize').addEventListener('click', function() {
+        const mapContainer = document.getElementById('map');
+        if (mapContainer) {
+          mapContainer.style.width = '100%';
+          mapContainer.style.height = '100%';
+          
+          if (map && typeof map.resize === 'function') {
+            map.resize();
+            alert('地图尺寸已重置');
+          }
+        }
+      });
+    }
+    
+    // 确保地图初始化
+    function ensureMapInitialized() {
+      // 检查地图是否存在并已初始化
+      if (!map || !mapReady) {
+        console.error('地图未初始化或未就绪');
+        alert('地图未初始化或未就绪，请等待地图加载完成');
+        return false;
+      }
+      
+      // 检查地图DOM元素
+      if (!map.getContainer()) {
+        console.error('地图容器元素不存在');
+        return false;
+      }
+      
+      return true;
+    }
+    
+    // 清除地图标记
+    function clearMapMarkers() {
+      console.log('清除地图标记, 当前标记数:', mapMarkers.length);
+      
+      if (!Array.isArray(mapMarkers)) {
+        console.warn('mapMarkers不是有效数组');
+        return;
+      }
+      
+      if (mapMarkers.length > 0) {
+        try {
+          // 使用更可靠的方式移除标记
+          for (let i = mapMarkers.length - 1; i >= 0; i--) {
+            try {
+              const marker = mapMarkers[i];
+              if (marker && typeof marker.setMap === 'function') {
+                marker.setMap(null);
+              }
+            } catch (error) {
+              console.error('移除单个标记失败:', error);
+            }
+          }
+        } catch (error) {
+          console.error('清除标记整体过程出错:', error);
+        } finally {
+          // 无论成功与否，都清空数组
+          mapMarkers.length = 0;
+        }
+      }
+    }
+    
+    // 页面加载完成后初始化地图
+    document.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html> 
