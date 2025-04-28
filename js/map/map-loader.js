@@ -4,7 +4,7 @@
  */
 
 // 高德地图API配置
-const AMAP_API_KEY = ''; // 请替换为您的高德地图API Key
+const AMAP_API_KEY = '4e2d49ca9a9adf4c8f0d01925b68c501'; // 请替换为您的高德地图API Key
 const AMAP_VERSION = '2.0';
 const AMAP_PLUGINS = ['AMap.ToolBar', 'AMap.Scale', 'AMap.Geolocation'];
 
