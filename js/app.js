@@ -90,10 +90,16 @@ function initChatComponent() {
       
       chatUI.init();
       
-      // 设置为使用模拟响应，因为目前还没有设置实际API
-      window.useChatSimulation = true;
+      // 检查当前环境
+      const isLocalDevelopment = window.location.hostname === 'localhost' || 
+                                window.location.hostname === '127.0.0.1';
       
-      console.log('聊天组件初始化成功');
+      // 在本地开发环境或无DeepSeek API密钥时使用模拟响应
+      // 在生产环境将通过Cloudflare Pages Functions调用DeepSeek API
+      window.useSimulation = isLocalDevelopment;
+      
+      console.log('聊天组件初始化成功，' + 
+                 (window.useSimulation ? '使用模拟响应' : '使用DeepSeek API'));
       resolve();
     } catch (error) {
       console.error('聊天组件初始化失败:', error);

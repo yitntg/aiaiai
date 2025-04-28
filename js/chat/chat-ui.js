@@ -107,7 +107,7 @@ const ChatUI = {
     // 使用ChatAPI发送消息
     if (window.ChatAPI) {
       // 根据全局设置决定是否使用模拟响应
-      const options = { useSimulation: window.useChatSimulation === true };
+      const options = { useSimulation: window.useSimulation === true };
       
       ChatAPI.sendMessage(message, options)
         .then(response => {
