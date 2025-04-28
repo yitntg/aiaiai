@@ -3,190 +3,189 @@
  * 处理文本中的地理信息
  */
 
-// 中国主要城市名称集合（用于快速匹配）
-const CITY_NAMES = [
-  '北京', '上海', '广州', '深圳', '成都', '杭州', '重庆', 
-  '西安', '南京', '武汉', '厦门', '青岛', '大连', '三亚', 
-  '昆明', '天津', '长沙', '苏州', '哈尔滨', '济南', '宁波',
-  '贵阳', '沈阳', '太原', '郑州', '长春', '福州', '乌鲁木齐'
+// 中国城市名称列表（部分）
+const knownCities = [
+  '北京', '上海', '广州', '深圳', '杭州', '南京', '成都', '重庆', '武汉',
+  '西安', '天津', '苏州', '厦门', '青岛', '大连', '长沙', '宁波', '郑州',
+  '济南', '沈阳', '哈尔滨', '长春', '福州', '合肥', '昆明', '贵阳', '南宁',
+  '石家庄', '太原', '南昌', '兰州', '海口', '乌鲁木齐', '拉萨', '银川', '西宁'
 ];
 
-// 地理关键词集合
-const GEO_KEYWORDS = {
-  景点: ['景点', '景区', '旅游', '名胜', '古迹', '公园', '寺庙', '博物馆', '宫殿'],
-  住宿: ['酒店', '旅馆', '住宿', '民宿', '度假村', '客栈', '青旅', '宾馆'],
-  餐饮: ['餐厅', '美食', '小吃', '饭店', '菜馆', '特色菜', '早餐', '午餐', '晚餐'],
-  交通: ['机场', '火车站', '汽车站', '地铁', '公交', '出租车', '高铁', '轻轨', '交通']
-};
+// 地点相关关键词（如景点、地标等）
+const placeKeywords = [
+  '故宫', '长城', '外滩', '西湖', '黄山', '长江', '黄河', '珠江', '泰山',
+  '颐和园', '天坛', '圆明园', '天安门', '鸟巢', '水立方', '东方明珠',
+  '布达拉宫', '九寨沟', '张家界', '桂林山水', '三亚', '香格里拉'
+];
+
+// 旅游相关关键词
+const travelKeywords = [
+  '旅游', '旅行', '景点', '景区', '游玩', '参观', '打卡', '行程',
+  '酒店', '民宿', '住宿', '机票', '火车', '高铁', '交通', '攻略',
+  '美食', '特产', '小吃', '购物', '纪念品', '自由行', '跟团', '导游'
+];
+
+// 地理操作相关关键词
+const geoOpKeywords = [
+  '在哪里', '怎么去', '如何到达', '距离', '附近', '周边', '位置',
+  '地址', '地图', '导航', '路线', '路程', '多远', '多久'
+];
 
 /**
- * 提取文本中的城市名称
+ * 处理文本并提取地理信息
  * @param {String} text - 输入文本
- * @returns {Array} - 城市名称数组
+ * @returns {Object} - 提取的地理信息
+ */
+function processText(text) {
+  if (!text || typeof text !== 'string') {
+    return { isGeoQuery: false, places: [], keywords: [] };
+  }
+  
+  // 转为小写以便不区分大小写匹配
+  const lowerText = text.toLowerCase();
+  
+  // 提取城市名称
+  const extractedCities = extractCities(text);
+  
+  // 提取地点关键词
+  const extractedPlaces = extractPlaceKeywords(text);
+  
+  // 提取旅游关键词
+  const extractedTravelKeywords = extractTravelKeywords(text);
+  
+  // 提取地理操作关键词
+  const extractedGeoOpKeywords = extractGeoOpKeywords(text);
+  
+  // 合并所有地点
+  const allPlaces = [...new Set([...extractedCities, ...extractedPlaces])];
+  
+  // 合并所有关键词
+  const allKeywords = [...new Set([...extractedTravelKeywords, ...extractedGeoOpKeywords])];
+  
+  // 判断是否是地理相关查询
+  const isGeoQuery = allPlaces.length > 0 || allKeywords.length > 0;
+  
+  return {
+    isGeoQuery,
+    places: allPlaces,
+    keywords: allKeywords,
+    intent: analyzeGeoIntent(text, allPlaces, allKeywords)
+  };
+}
+
+/**
+ * 从文本中提取城市名称
+ * @param {String} text - 输入文本
+ * @returns {Array} - 提取的城市名称
  */
 function extractCities(text) {
   if (!text) return [];
   
   const cities = [];
   
-  // 遍历城市名称集合，检查是否出现在文本中
-  CITY_NAMES.forEach(city => {
-    if (text.includes(city) && !cities.includes(city)) {
+  // 检查每个已知城市名称
+  for (const city of knownCities) {
+    if (text.includes(city)) {
       cities.push(city);
     }
-  });
+  }
   
   return cities;
 }
 
 /**
- * 提取文本中的地理关键词
+ * 从文本中提取地点关键词
  * @param {String} text - 输入文本
- * @returns {Object} - 分类的地理关键词对象
+ * @returns {Array} - 提取的地点关键词
  */
-function extractGeoKeywords(text) {
-  if (!text) return {};
+function extractPlaceKeywords(text) {
+  if (!text) return [];
   
-  const result = {
-    景点: [],
-    住宿: [],
-    餐饮: [],
-    交通: []
-  };
+  const places = [];
   
-  // 遍历地理关键词集合，检查是否出现在文本中
-  Object.keys(GEO_KEYWORDS).forEach(category => {
-    GEO_KEYWORDS[category].forEach(keyword => {
-      if (text.includes(keyword) && !result[category].includes(keyword)) {
-        result[category].push(keyword);
-      }
-    });
-  });
-  
-  // 过滤掉空数组
-  const filteredResult = {};
-  Object.keys(result).forEach(key => {
-    if (result[key].length > 0) {
-      filteredResult[key] = result[key];
+  // 检查每个地点关键词
+  for (const place of placeKeywords) {
+    if (text.includes(place)) {
+      places.push(place);
     }
-  });
+  }
   
-  return filteredResult;
+  return places;
+}
+
+/**
+ * 从文本中提取旅游关键词
+ * @param {String} text - 输入文本
+ * @returns {Array} - 提取的旅游关键词
+ */
+function extractTravelKeywords(text) {
+  if (!text) return [];
+  
+  const keywords = [];
+  
+  // 检查每个旅游关键词
+  for (const keyword of travelKeywords) {
+    if (text.includes(keyword)) {
+      keywords.push(keyword);
+    }
+  }
+  
+  return keywords;
+}
+
+/**
+ * 从文本中提取地理操作关键词
+ * @param {String} text - 输入文本
+ * @returns {Array} - 提取的地理操作关键词
+ */
+function extractGeoOpKeywords(text) {
+  if (!text) return [];
+  
+  const keywords = [];
+  
+  // 检查每个地理操作关键词
+  for (const keyword of geoOpKeywords) {
+    if (text.includes(keyword)) {
+      keywords.push(keyword);
+    }
+  }
+  
+  return keywords;
 }
 
 /**
  * 分析文本中的地理查询意图
  * @param {String} text - 输入文本
- * @returns {Object} - 查询意图对象
+ * @param {Array} places - 提取的地点
+ * @param {Array} keywords - 提取的关键词
+ * @returns {String} - 查询意图
  */
-function analyzeGeoIntent(text) {
-  if (!text) return { hasGeoIntent: false };
-  
-  // 提取城市
-  const cities = extractCities(text);
-  
-  // 提取地理关键词
-  const keywords = extractGeoKeywords(text);
-  
-  // 判断是否包含地理意图
-  const hasGeoIntent = cities.length > 0 || Object.keys(keywords).length > 0;
-  
-  // 确定主要意图
-  let primaryIntent = null;
-  let intentScore = 0;
-  
-  if (Object.keys(keywords).length > 0) {
-    // 根据关键词数量确定主要意图
-    Object.keys(keywords).forEach(intent => {
-      const score = keywords[intent].length;
-      if (score > intentScore) {
-        intentScore = score;
-        primaryIntent = intent;
-      }
-    });
+function analyzeGeoIntent(text, places, keywords) {
+  if (!text || places.length === 0) {
+    return 'unknown';
   }
   
-  // 查询类型判断
-  const isLocationQuery = hasGeoIntent || 
-    text.includes('在哪里') || 
-    text.includes('怎么去') || 
-    text.includes('位置') || 
-    text.includes('地址') || 
-    text.includes('附近');
-  
-  return {
-    hasGeoIntent,
-    isLocationQuery,
-    cities,
-    keywords,
-    primaryIntent
-  };
+  // 检查意图类型
+  if (text.includes('怎么去') || text.includes('如何到达') || text.includes('路线')) {
+    return 'route';
+  } else if (text.includes('在哪里') || text.includes('位置') || text.includes('地址')) {
+    return 'location';
+  } else if (text.includes('附近') || text.includes('周边')) {
+    return 'nearby';
+  } else if (text.includes('景点') || text.includes('景区') || text.includes('游玩')) {
+    return 'attractions';
+  } else if (text.includes('酒店') || text.includes('住宿')) {
+    return 'accommodation';
+  } else if (text.includes('美食') || text.includes('餐厅') || text.includes('小吃')) {
+    return 'food';
+  } else {
+    return 'general';
+  }
 }
 
-/**
- * 获取推荐的地图操作
- * @param {Object} intent - 查询意图对象
- * @returns {Object|null} - 推荐操作对象或null
- */
-function getRecommendedMapAction(intent) {
-  if (!intent || !intent.hasGeoIntent) {
-    return null;
-  }
-  
-  // 如果有城市，则以第一个城市为主
-  const city = intent.cities.length > 0 ? intent.cities[0] : null;
-  
-  // 根据意图生成搜索关键词
-  let searchKeyword = '';
-  
-  if (city) {
-    searchKeyword = city;
-    
-    // 如果有主要意图，添加到搜索关键词中
-    if (intent.primaryIntent && intent.keywords[intent.primaryIntent].length > 0) {
-      const firstKeyword = intent.keywords[intent.primaryIntent][0];
-      searchKeyword += ' ' + firstKeyword;
-    }
-  }
-  
-  // 如果没有搜索关键词，则返回null
-  if (!searchKeyword) {
-    return null;
-  }
-  
-  // 构建推荐操作
-  return {
-    action: 'search',
-    searchKeyword,
-    city,
-    intent: intent.primaryIntent || '景点'
-  };
-}
-
-/**
- * 处理文本并提取地理信息
- * @param {String} text - 输入文本
- * @returns {Object} - 处理结果对象
- */
-function processText(text) {
-  // 分析地理查询意图
-  const intent = analyzeGeoIntent(text);
-  
-  // 获取推荐的地图操作
-  const recommendedAction = getRecommendedMapAction(intent);
-  
-  return {
-    original: text,
-    intent,
-    recommendedAction
-  };
-}
-
-// 导出地理文本处理功能
+// 导出地理文本处理模块
 window.GeoTextProcessor = {
+  processText,
   extractCities,
-  extractGeoKeywords,
-  analyzeGeoIntent,
-  getRecommendedMapAction,
-  processText
+  analyzeGeoIntent
 }; 

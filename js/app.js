@@ -50,27 +50,139 @@ function initApp() {
 
 /**
  * 初始化地图组件
- * @returns {Promise} - 地图初始化Promise
+ * @returns {Promise} 初始化完成的Promise
  */
 function initMapComponent() {
-  return MapLoader.loadMapResources()
-    .then(() => MapCore.initMap('map'))
-    .then(map => {
-      // 可以在这里初始化其他地图相关功能
-      return map;
-    });
+  return new Promise((resolve, reject) => {
+    console.log('开始初始化地图组件...');
+    
+    // 首先加载地图资源
+    MapLoader.loadMapResources()
+      .then(resources => {
+        console.log('地图资源加载完成，初始化地图...');
+        return MapCore.initMap('map');
+      })
+      .then(map => {
+        console.log('地图初始化成功');
+        resolve();
+      })
+      .catch(error => {
+        console.error('地图组件初始化失败:', error);
+        reject(error);
+      });
+  });
 }
 
 /**
  * 初始化聊天组件
- * @returns {Promise} - 聊天初始化Promise
+ * @returns {Promise} 初始化完成的Promise
  */
 function initChatComponent() {
-  return Promise.resolve()
-    .then(() => {
-      // 聊天组件已经通过DOM内容加载事件初始化了
-      return true;
-    });
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('初始化聊天组件...');
+      
+      // 初始化聊天UI
+      const chatUI = window.ChatUI;
+      if (!chatUI) {
+        throw new Error('聊天UI模块未加载');
+      }
+      
+      chatUI.init();
+      
+      // 设置为使用模拟响应，因为目前还没有设置实际API
+      window.useChatSimulation = true;
+      
+      console.log('聊天组件初始化成功');
+      resolve();
+    } catch (error) {
+      console.error('聊天组件初始化失败:', error);
+      reject(error);
+    }
+  });
+}
+
+/**
+ * 检查所有组件是否就绪
+ */
+function checkAllComponentsReady() {
+  if (appState.mapReady && appState.chatReady) {
+    console.log('所有组件已就绪');
+    hideLoadingState();
+  }
+}
+
+/**
+ * 显示加载状态
+ */
+function showLoadingState() {
+  console.log('显示加载状态...');
+}
+
+/**
+ * 隐藏加载状态
+ */
+function hideLoadingState() {
+  console.log('隐藏加载状态...');
+  document.querySelector('.map-loading').style.display = 'none';
+}
+
+/**
+ * 显示错误状态
+ * @param {String} title - 错误标题
+ * @param {String} message - 错误消息
+ */
+function showErrorState(title, message) {
+  console.error(`错误: ${title} - ${message}`);
+  document.getElementById('map').innerHTML = `
+    <div style="padding: 20px; text-align: center;">
+      <h3>${title}</h3>
+      <p>${message}</p>
+      <button onclick="location.reload()">重新加载</button>
+    </div>
+  `;
+}
+
+/**
+ * 处理聊天消息
+ * @param {CustomEvent} event - 聊天消息事件
+ */
+function handleChatMessage(event) {
+  const message = event.detail;
+  console.log('收到聊天消息:', message);
+  
+  // 检查是否为地点相关查询
+  const geoProcessor = window.GeoTextProcessor;
+  if (geoProcessor) {
+    const geoInfo = geoProcessor.processText(message);
+    if (geoInfo && geoInfo.places.length > 0) {
+      console.log('检测到地点相关查询:', geoInfo);
+      
+      // 在地图上标记地点
+      const mapMarkers = window.MapMarkers;
+      if (mapMarkers && appState.mapReady) {
+        // 获取第一个地点并标记
+        const place = geoInfo.places[0];
+        MapCore.waitForMap().then(() => {
+          const cityData = window.CitiesData && window.CitiesData.getCityByName 
+            ? window.CitiesData.getCityByName(place) 
+            : null;
+          
+          if (cityData) {
+            mapMarkers.addMarker(cityData.coords, cityData.name, cityData);
+            MapCore.setMapCenter(cityData.coords);
+            MapCore.setMapZoom(10, false);
+          } else {
+            // 如果没有找到城市数据，尝试搜索
+            const mapSearch = window.MapSearch;
+            if (mapSearch) {
+              mapSearch.searchPlace(place);
+            }
+          }
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -86,111 +198,5 @@ function initAboutModal() {
   };
 }
 
-/**
- * 处理聊天消息
- * @param {CustomEvent} event - 聊天消息事件
- */
-function handleChatMessage(event) {
-  const { message, type } = event.detail;
-  
-  if (type === 'user') {
-    console.log('收到用户消息:', message);
-    
-    // 这里应该调用ChatAPI发送消息到后端
-    // 模拟API调用延迟
-    setTimeout(() => {
-      // 判断是否是地点相关的查询
-      const isLocationQuery = checkIfLocationQuery(message);
-      
-      if (isLocationQuery) {
-        // 处理地点相关查询
-        handleLocationQuery(message);
-      } else {
-        // 处理普通查询
-        handleGeneralQuery(message);
-      }
-    }, 1000);
-  }
-}
-
-/**
- * 检查是否是地点相关的查询
- * @param {String} message - 用户消息
- * @returns {Boolean} - 是否是地点查询
- */
-function checkIfLocationQuery(message) {
-  // 简单的关键词检测，实际项目中可以使用更复杂的NLP处理
-  const locationKeywords = ['在哪里', '怎么去', '地址', '位置', '附近', '旅游', '景点', '酒店', '餐厅'];
-  return locationKeywords.some(keyword => message.includes(keyword));
-}
-
-/**
- * 处理地点相关的查询
- * @param {String} message - 用户消息
- */
-function handleLocationQuery(message) {
-  // 模拟地理文本处理
-  const mockResponse = '北京是中国的首都，位于华北平原北部。';
-  ChatUI.addAssistantMessage(mockResponse);
-  
-  // 模拟在地图上标记位置
-  if (MapCore.isMapReady()) {
-    const beijingCoords = [116.4074, 39.9042]; // 北京坐标
-    
-    // 设置地图中心并添加标记
-    MapCore.setMapCenter(beijingCoords);
-    MapCore.setMapZoom(12, false);
-    
-    // 这里应该调用MapMarkers模块添加标记
-    console.log('在地图上标记位置:', beijingCoords);
-  }
-}
-
-/**
- * 处理一般性查询
- * @param {String} message - 用户消息
- */
-function handleGeneralQuery(message) {
-  // 模拟通用查询响应
-  const mockResponse = '作为AI助手，我可以回答您的各种问题。需要了解更多信息吗？';
-  ChatUI.addAssistantMessage(mockResponse);
-}
-
-/**
- * 检查所有组件是否准备就绪
- */
-function checkAllComponentsReady() {
-  if (appState.mapReady && appState.chatReady) {
-    console.log('所有组件已准备就绪');
-    hideLoadingState();
-  }
-}
-
-/**
- * 显示加载状态
- */
-function showLoadingState() {
-  // 应用程序加载中的UI状态
-  console.log('应用程序加载中...');
-}
-
-/**
- * 隐藏加载状态
- */
-function hideLoadingState() {
-  // 隐藏加载指示器
-  console.log('加载完成，应用程序已就绪');
-}
-
-/**
- * 显示错误状态
- * @param {String} title - 错误标题
- * @param {String} message - 错误消息
- */
-function showErrorState(title, message) {
-  console.error(`${title}: ${message}`);
-  // 这里可以添加错误UI展示
-}
-
-// 在DOM内容加载完成后初始化应用程序
+// 在DOM加载完成后初始化应用
 document.addEventListener('DOMContentLoaded', initApp); 

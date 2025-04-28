@@ -41,8 +41,23 @@ function sendMessage(message, options = {}) {
       }
     };
     
-    // 模拟API调用（实际项目中应替换为真实API调用）
-    if (options.useRealApi) {
+    // 默认使用真实API调用，只有在特别指定useSimulation时才使用模拟响应
+    if (options.useSimulation) {
+      // 使用模拟响应（仅用于开发测试）
+      simulateResponse(message)
+        .then(response => {
+          // 添加到历史记录
+          chatHistory.push({
+            role: 'assistant',
+            content: response.content
+          });
+          
+          resolve(response);
+        })
+        .catch(error => {
+          reject(error);
+        });
+    } else {
       // 发送真实API请求
       sendApiRequest(requestData)
         .then(response => {
@@ -56,22 +71,22 @@ function sendMessage(message, options = {}) {
         })
         .catch(error => {
           console.error('API请求失败:', error);
-          reject(error);
-        });
-    } else {
-      // 模拟响应
-      simulateResponse(message)
-        .then(response => {
-          // 添加到历史记录
-          chatHistory.push({
-            role: 'assistant',
-            content: response.content
-          });
-          
-          resolve(response);
-        })
-        .catch(error => {
-          reject(error);
+          // 如果API请求失败，尝试回退到模拟响应
+          console.log('尝试使用模拟响应作为备选...');
+          return simulateResponse(message)
+            .then(fallbackResponse => {
+              chatHistory.push({
+                role: 'assistant',
+                content: fallbackResponse.content
+              });
+              resolve({
+                ...fallbackResponse,
+                metadata: {
+                  ...fallbackResponse.metadata,
+                  fallback: true
+                }
+              });
+            });
         });
     }
   });

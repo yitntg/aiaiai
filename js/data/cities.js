@@ -129,51 +129,78 @@ const citiesData = [
 
 /**
  * 获取所有城市数据
- * @returns {Array} - 城市数据数组
+ * @returns {Array} - 所有城市数据
  */
 function getAllCities() {
-  return citiesData;
+  return [...citiesData];
 }
 
 /**
- * 根据城市名称查找城市
- * @param {String} cityName - 城市名称
+ * 根据城市名称获取城市数据
+ * @param {String} name - 城市名称
  * @returns {Object|null} - 城市数据或null
  */
-function getCityByName(cityName) {
-  return citiesData.find(city => 
-    city.name === cityName || 
-    city.pinyin === cityName.toLowerCase()
-  ) || null;
+function getCityByName(name) {
+  if (!name) return null;
+  
+  // 转换为小写进行不区分大小写的搜索
+  const searchName = name.toLowerCase();
+  
+  // 精确匹配
+  let city = citiesData.find(city => 
+    city.name === name || 
+    city.name.toLowerCase() === searchName ||
+    city.pinyin === searchName
+  );
+  
+  // 如果没有精确匹配，尝试部分匹配
+  if (!city) {
+    city = citiesData.find(city => 
+      city.name.includes(name) || 
+      city.name.toLowerCase().includes(searchName) ||
+      city.pinyin.includes(searchName)
+    );
+  }
+  
+  return city || null;
 }
 
 /**
- * 根据坐标查找最近的城市
+ * 根据坐标获取最近的城市
  * @param {Array} coords - 坐标 [lng, lat]
- * @returns {Object} - 最近的城市数据
+ * @returns {Object|null} - 最近的城市数据或null
  */
 function getNearestCity(coords) {
   if (!coords || !Array.isArray(coords) || coords.length !== 2) {
     return null;
   }
   
-  // 计算两点之间的距离（简化版，不考虑地球曲率）
-  function calcDistance(point1, point2) {
-    const [lng1, lat1] = point1;
-    const [lng2, lat2] = point2;
-    return Math.sqrt(Math.pow(lng1 - lng2, 2) + Math.pow(lat1 - lat2, 2));
-  }
+  const [lng, lat] = coords;
   
+  // 计算距离的简单函数
+  const calculateDistance = (coords1, coords2) => {
+    const [lng1, lat1] = coords1;
+    const [lng2, lat2] = coords2;
+    
+    // 使用欧几里得距离（简化计算，实际应使用大圆距离）
+    return Math.sqrt(
+      Math.pow(lng1 - lng2, 2) + 
+      Math.pow(lat1 - lat2, 2)
+    );
+  };
+  
+  // 查找最近的城市
   let nearestCity = null;
   let minDistance = Infinity;
   
-  citiesData.forEach(city => {
-    const distance = calcDistance(coords, city.coords);
+  for (const city of citiesData) {
+    const distance = calculateDistance(coords, city.coords);
+    
     if (distance < minDistance) {
       minDistance = distance;
       nearestCity = city;
     }
-  });
+  }
   
   return nearestCity;
 }
@@ -187,7 +214,7 @@ function getCitiesByRating(minRating = 4.0) {
   return citiesData.filter(city => city.rating >= minRating);
 }
 
-// 导出城市数据功能
+// 导出城市数据模块
 window.CitiesData = {
   getAllCities,
   getCityByName,
