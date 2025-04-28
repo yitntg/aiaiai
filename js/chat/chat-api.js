@@ -5,9 +5,8 @@
 
 // API配置
 const API_CONFIG = {
-  endpointUrl: 'https://api.deepseek.com/v1/chat/completions', // DeepSeek API端点
-  timeout: 30000,         // 请求超时时间（毫秒）
-  apiKey: ''              // 在实际部署时需要替换为有效的API密钥
+  endpointUrl: '/api/deepseek', // Cloudflare Function代理接口
+  timeout: 30000            // 请求超时时间（毫秒）
 };
 
 // 会话历史记录
@@ -32,74 +31,10 @@ function sendMessage(message, options = {}) {
       content: message
     });
     
-    // 环境检测：检查是否在Cloudflare Pages上运行
-    const isCloudflarePages = typeof window !== 'undefined' && 
-                             window.location && 
-                             window.location.hostname.includes('.pages.dev');
-    
-    // 准备请求数据 - DeepSeek API格式
-    const requestData = {
-      model: options.model || 'deepseek-chat',
-      messages: chatHistory,
-      temperature: options.temperature || 0.7,
-      max_tokens: options.max_tokens || 1000,
-      stream: false
-    };
-    
-    // 如果在Cloudflare Pages上，使用Functions作为代理
-    if (isCloudflarePages && !options.useSimulation) {
-      // 通过Cloudflare Pages Functions发送请求
-      fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`API返回错误: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        // 处理响应
-        const assistantMessage = data.choices[0].message;
-        
-        // 添加到历史记录
-        chatHistory.push(assistantMessage);
-        
-        resolve({
-          content: assistantMessage.content,
-          metadata: {
-            model: data.model,
-            usage: data.usage
-          }
-        });
-      })
-      .catch(error => {
-        console.error('API请求失败:', error);
-        
-        // 如果API请求失败，回退到模拟响应
-        return simulateResponse(message)
-          .then(fallbackResponse => {
-            chatHistory.push({
-              role: 'assistant',
-              content: fallbackResponse.content
-            });
-            
-            resolve({
-              ...fallbackResponse,
-              metadata: {
-                ...fallbackResponse.metadata,
-                fallback: true
-              }
-            });
-          });
-      });
-    } else {
-      // 如果不在Pages上或者指定使用模拟响应，使用模拟数据
-      simulateResponse(message)
+    // 检查是否使用模拟响应（本地开发环境）
+    if (options.useSimulation) {
+      // 使用模拟响应（仅用于开发测试）
+      return simulateResponse(message)
         .then(response => {
           // 添加到历史记录
           chatHistory.push({
@@ -113,6 +48,66 @@ function sendMessage(message, options = {}) {
           reject(error);
         });
     }
+    
+    // 使用Cloudflare Function代理调用DeepSeek API
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+    
+    fetch(API_CONFIG.endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ message }),
+      signal: controller.signal
+    })
+    .then(response => {
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`API返回错误: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      // 处理响应
+      const assistantContent = data.content || '';
+      
+      // 添加到历史记录
+      chatHistory.push({
+        role: 'assistant',
+        content: assistantContent
+      });
+      
+      resolve({
+        content: assistantContent,
+        metadata: {
+          role: data.role || 'assistant'
+        }
+      });
+    })
+    .catch(error => {
+      clearTimeout(timeoutId);
+      console.error('API请求失败:', error);
+      
+      // 如果API请求失败，回退到模拟响应
+      console.log('尝试使用模拟响应作为备选...');
+      return simulateResponse(message)
+        .then(fallbackResponse => {
+          chatHistory.push({
+            role: 'assistant',
+            content: fallbackResponse.content
+          });
+          
+          resolve({
+            ...fallbackResponse,
+            metadata: {
+              ...fallbackResponse.metadata,
+              fallback: true
+            }
+          });
+        });
+    });
   });
 }
 
